@@ -1,0 +1,393 @@
+diff --git a/src/main_python.ts b/src/main_python.ts
+index ac3d5005..10ad371e 100644
+--- a/src/main_python.ts
++++ b/src/main_python.ts
+@@ -119,7 +119,7 @@ window.addEventListener('DOMContentLoaded', () => {
+   configState.add('screenshot', screenshotHandler.requestState);
+ 
+   let sharedState: Trackable|undefined = viewer.state;
+-
++  viewer.loadFromJsonUrl();
+   if (window.location.hash) {
+     const hashBinding = viewer.registerDisposer(new UrlHashBinding(viewer.state));
+     hashBinding.updateFromUrlHash();
+diff --git a/src/neuroglancer/image_user_layer.ts b/src/neuroglancer/image_user_layer.ts
+index 89b7cec4..e1bb3d74 100644
+--- a/src/neuroglancer/image_user_layer.ts
++++ b/src/neuroglancer/image_user_layer.ts
+@@ -27,6 +27,10 @@ import {RangeWidget} from 'neuroglancer/widget/range';
+ import {RenderScaleWidget} from 'neuroglancer/widget/render_scale_widget';
+ import {ShaderCodeWidget} from 'neuroglancer/widget/shader_code_widget';
+ import {Tab} from 'neuroglancer/widget/tab_view';
++import {TrackableRGB} from 'neuroglancer/util/color';
++import {TrackableBoolean, TrackableBooleanCheckbox} from 'neuroglancer/trackable_boolean';
++import {ColorWidget} from 'neuroglancer/widget/color';
++import {vec3} from 'neuroglancer/util/geom';
+ 
+ require('./image_user_layer.css');
+ require('neuroglancer/maximize_button.css');
+@@ -34,6 +38,10 @@ require('neuroglancer/maximize_button.css');
+ const OPACITY_JSON_KEY = 'opacity';
+ const BLEND_JSON_KEY = 'blend';
+ const SHADER_JSON_KEY = 'shader';
++const COLOR_JSON_KEY = 'color';
++const USE_CUSTOM_SHADER_JSON_KEY = 'use_custom_shader';
++const MIN_JSON_KEY = 'min';
++const MAX_JSON_KEY = 'max';
+ 
+ const Base = UserLayerWithVolumeSourceMixin(UserLayer);
+ export class ImageUserLayer extends Base {
+@@ -41,7 +49,12 @@ export class ImageUserLayer extends Base {
+   blendMode = trackableBlendModeValue();
+   fragmentMain = getTrackableFragmentMain();
+   shaderError = makeWatchableShaderError();
++  color = new TrackableRGB(vec3.fromValues(1, 1, 1));
++  useCustomShader = new TrackableBoolean(false);
+   renderLayer: ImageRenderLayer;
++  min = trackableAlphaValue(0.0);
++  max = trackableAlphaValue(1.0);
++  shaderEditorUpdate: () => void;
+   constructor(manager: LayerListSpecification, x: any) {
+     super(manager, x);
+     this.registerDisposer(this.fragmentMain.changed.add(this.specificationChanged.dispatch));
+@@ -49,6 +62,30 @@ export class ImageUserLayer extends Base {
+         'rendering',
+         {label: 'Rendering', order: -100, getter: () => new RenderingOptionsTab(this)});
+     this.tabs.default = 'rendering';
++    this.shaderEditorUpdate = () => {
++      if (!this.useCustomShader.value) {
++        let shaderString = `float scale(float x) {
++  float min = ${this.min.value.toPrecision(2)};
++  float max = ${this.max.value.toPrecision(2)};
++  return (x - min) / (max - min);
++}
++void main() {
++  emitRGB(
++    vec3(
++      scale(toNormalized(getDataValue()))*${this.color.value[0].toPrecision(3)},
++      scale(toNormalized(getDataValue()))*${this.color.value[1].toPrecision(3)},
++      scale(toNormalized(getDataValue()))*${this.color.value[2].toPrecision(3)}
++    )
++  );
++}`;
++        this.fragmentMain.value = shaderString;
++      }
++    };
++
++    // EAP: Kludge to update the shader & trigger a change event
++    this.color.changed.add(this.shaderEditorUpdate);
++    this.min.changed.add(this.shaderEditorUpdate);
++    this.max.changed.add(this.shaderEditorUpdate);
+   }
+ 
+   restoreState(specification: any) {
+@@ -56,6 +93,10 @@ export class ImageUserLayer extends Base {
+     this.opacity.restoreState(specification[OPACITY_JSON_KEY]);
+     this.blendMode.restoreState(specification[BLEND_JSON_KEY]);
+     this.fragmentMain.restoreState(specification[SHADER_JSON_KEY]);
++    this.color.restoreState(specification[COLOR_JSON_KEY]);
++    this.useCustomShader.restoreState(specification[USE_CUSTOM_SHADER_JSON_KEY]);
++    this.min.restoreState(specification[MIN_JSON_KEY]);
++    this.max.restoreState(specification[MAX_JSON_KEY]);
+     const {multiscaleSource} = this;
+     if (multiscaleSource === undefined) {
+       throw new Error(`source property must be specified`);
+@@ -82,7 +123,14 @@ export class ImageUserLayer extends Base {
+     x['type'] = 'image';
+     x[OPACITY_JSON_KEY] = this.opacity.toJSON();
+     x[BLEND_JSON_KEY] = this.blendMode.toJSON();
+-    x[SHADER_JSON_KEY] = this.fragmentMain.toJSON();
++    x[USE_CUSTOM_SHADER_JSON_KEY] = this.useCustomShader.toJSON();
++    if (this.useCustomShader.value) {
++      x[SHADER_JSON_KEY] = this.fragmentMain.toJSON();
++    } else {
++      x[COLOR_JSON_KEY] = this.color.toJSON();
++      x[MIN_JSON_KEY] = this.min.toJSON();
++      x[MAX_JSON_KEY] = this.max.toJSON();
++    }
+     return x;
+   }
+ }
+@@ -98,6 +146,10 @@ function makeShaderCodeWidget(layer: ImageUserLayer) {
+ class RenderingOptionsTab extends Tab {
+   opacityWidget = this.registerDisposer(new RangeWidget(this.layer.opacity));
+   codeWidget = this.registerDisposer(makeShaderCodeWidget(this.layer));
++  colorPicker = this.registerDisposer(new ColorWidget(this.layer.color));
++  minWidget = this.registerDisposer(new RangeWidget(this.layer.min));
++  maxWidget = this.registerDisposer(new RangeWidget(this.layer.max));
++
+   constructor(public layer: ImageUserLayer) {
+     super();
+     const {element} = this;
+@@ -148,6 +200,22 @@ class RenderingOptionsTab extends Tab {
+         this.codeWidget.textEditor.refresh();
+       }
+     });
++
++    const checkbox = this.registerDisposer(new TrackableBooleanCheckbox(layer.useCustomShader));
++    const label = document.createElement('label');
++    label.appendChild(document.createTextNode('Use custom shader '));
++    label.appendChild(checkbox.element);
++    element.appendChild(label);
++
++    element.appendChild(document.createElement('br'));
++    element.appendChild(document.createTextNode('Color: '));
++    this.colorPicker.element.title = 'Change layer display color';
++    element.appendChild(this.colorPicker.element);
++    element.appendChild(document.createElement('br'));
++    this.minWidget.promptElement.textContent = 'Min: ';
++    element.appendChild(this.minWidget.element);
++    this.maxWidget.promptElement.textContent = 'Max: ';
++    element.appendChild(this.maxWidget.element);
+   }
+ }
+ 
+diff --git a/src/neuroglancer/ui/default_viewer_setup.ts b/src/neuroglancer/ui/default_viewer_setup.ts
+index bf5ccbf7..0e8f5fd1 100644
+--- a/src/neuroglancer/ui/default_viewer_setup.ts
++++ b/src/neuroglancer/ui/default_viewer_setup.ts
+@@ -38,6 +38,8 @@ export function setupDefaultViewer() {
+     hashBinding.parseError;
+   }));
+   hashBinding.updateFromUrlHash();
++  
++  viewer.loadFromJsonUrl();
+ 
+   bindDefaultCopyHandler(viewer);
+   bindDefaultPasteHandler(viewer);
+diff --git a/src/neuroglancer/ui/state_editor.ts b/src/neuroglancer/ui/state_editor.ts
+index e3f166e4..ac5ce78f 100644
+--- a/src/neuroglancer/ui/state_editor.ts
++++ b/src/neuroglancer/ui/state_editor.ts
+@@ -38,6 +38,7 @@ const valueUpdateDelay = 100;
+ export class StateEditorDialog extends Overlay {
+   textEditor: CodeMirror.Editor;
+   applyButton: HTMLButtonElement;
++  exportButton: HTMLButtonElement;
+   constructor(public viewer: Viewer) {
+     super();
+ 
+@@ -49,6 +50,11 @@ export class StateEditorDialog extends Overlay {
+     button.addEventListener('click', () => this.applyChanges());
+     button.disabled = true;
+ 
++    const exportButton = this.exportButton = document.createElement('button');
++    exportButton.textContent = 'Export';
++    this.content.appendChild(exportButton);
++    exportButton.addEventListener('click', () => this.exportState());
++
+     this.textEditor = CodeMirror(_element => {}, <any>{
+       value: '',
+       mode: {'name': 'javascript', json: true},
+@@ -68,6 +74,16 @@ export class StateEditorDialog extends Overlay {
+     this.textEditor.refresh();
+   }
+ 
++  private exportState() {
++    var downloadLink = document.createElement('a');
++    var blob = new Blob([this.getJson()], {type: 'text/json'});
++    var blobUrl = URL.createObjectURL(blob);
++    downloadLink.href = blobUrl;
++    downloadLink.download = 'state.json';
++    downloadLink.click();
++    document.body.removeChild(downloadLink);
++  }
++
+   private applyChanges() {
+     if (this.parsedValue !== null) {
+       this.viewer.state.reset();
+diff --git a/src/neuroglancer/ui/url_hash_binding.ts b/src/neuroglancer/ui/url_hash_binding.ts
+index c85e2704..08d026be 100644
+--- a/src/neuroglancer/ui/url_hash_binding.ts
++++ b/src/neuroglancer/ui/url_hash_binding.ts
+@@ -33,6 +33,10 @@ function encodeFragment(fragment: string) {
+   });
+ }
+ 
++export function removeParameterFromUrl(url: string, parameter: string) {
++  return url.replace(new RegExp('[?&]' + parameter + '=[^&#]*(#.*)?$'), '$1')
++      .replace(new RegExp('([?&])' + parameter + '=[^&]*&'), '$1');
++}
+ /**
+  * An instance of this class manages a binding between a Trackable value and the URL hash state.
+  * The binding is initialized in the constructor, and is removed when dispose is called.
+@@ -67,6 +71,8 @@ export class UrlHashBinding extends RefCounted {
+   setUrlHash() {
+     const cacheState = getCachedJson(this.root);
+     const {generation} = cacheState;
++    history.replaceState(null, '', removeParameterFromUrl(window.location.href, 'json_url'));
++
+     if (generation !== this.prevStateGeneration) {
+       this.prevStateGeneration = cacheState.generation;
+       let stateString = encodeFragment(JSON.stringify(cacheState.value));
+diff --git a/src/neuroglancer/viewer.ts b/src/neuroglancer/viewer.ts
+index 85d79b2f..37eba445 100644
+--- a/src/neuroglancer/viewer.ts
++++ b/src/neuroglancer/viewer.ts
+@@ -38,12 +38,14 @@ import {MouseSelectionStateTooltipManager} from 'neuroglancer/ui/mouse_selection
+ import {setupPositionDropHandlers} from 'neuroglancer/ui/position_drag_and_drop';
+ import {StateEditorDialog} from 'neuroglancer/ui/state_editor';
+ import {StatisticsDisplayState, StatisticsPanel} from 'neuroglancer/ui/statistics';
++import {removeParameterFromUrl} from 'neuroglancer/ui/url_hash_binding';
+ import {AutomaticallyFocusedElement} from 'neuroglancer/util/automatic_focus';
+ import {TrackableRGB} from 'neuroglancer/util/color';
+ import {Borrowed, Owned, RefCounted} from 'neuroglancer/util/disposable';
+ import {removeFromParent} from 'neuroglancer/util/dom';
+ import {registerActionListener} from 'neuroglancer/util/event_action_map';
+ import {vec3} from 'neuroglancer/util/geom';
++import {cancellableFetchOk, responseJson} from 'neuroglancer/util/http_request';
+ import {EventActionMap, KeyboardEventBinder} from 'neuroglancer/util/keyboard_bindings';
+ import {NullarySignal} from 'neuroglancer/util/signal';
+ import {CompoundTrackable} from 'neuroglancer/util/trackable';
+@@ -63,6 +65,10 @@ require('./viewer.css');
+ require('neuroglancer/noselect.css');
+ require('neuroglancer/ui/button.css');
+ 
++export function validateStateServer(obj: any) {
++  return obj;
++}
++
+ export class DataManagementContext extends RefCounted {
+   worker = new Worker('chunk_worker.bundle.js');
+   chunkQueueManager = this.registerDisposer(
+@@ -90,11 +96,8 @@ export class InputEventBindings extends DataPanelInputEventBindings {
+ }
+ 
+ const viewerUiControlOptionKeys: (keyof ViewerUIControlConfiguration)[] = [
+-  'showHelpButton',
+-  'showEditStateButton',
+-  'showLayerPanel',
+-  'showLocation',
+-  'showAnnotationToolStatus',
++  'showHelpButton', 'showEditStateButton', 'showLayerPanel', 'showLocation',
++  'showAnnotationToolStatus', 'showJsonPostButton'
+ ];
+ 
+ const viewerOptionKeys: (keyof ViewerUIOptions)[] =
+@@ -103,6 +106,7 @@ const viewerOptionKeys: (keyof ViewerUIOptions)[] =
+ export class ViewerUIControlConfiguration {
+   showHelpButton = new TrackableBoolean(true);
+   showEditStateButton = new TrackableBoolean(true);
++  showJsonPostButton = new TrackableBoolean(true);
+   showLayerPanel = new TrackableBoolean(true);
+   showLocation = new TrackableBoolean(true);
+   showAnnotationToolStatus = new TrackableBoolean(true);
+@@ -116,6 +120,7 @@ export class ViewerUIConfiguration extends ViewerUIControlConfiguration {
+   showPanelBorders = new TrackableBoolean(true);
+ }
+ 
++
+ function setViewerUiConfiguration(
+     config: ViewerUIConfiguration, options: Partial<ViewerUIOptions>) {
+   for (const key of viewerOptionKeys) {
+@@ -134,6 +139,7 @@ interface ViewerUIOptions {
+   showLocation: boolean;
+   showPanelBorders: boolean;
+   showAnnotationToolStatus: boolean;
++  showJsonPostButton: boolean;
+ }
+ 
+ export interface ViewerOptions extends ViewerUIOptions, VisibilityPrioritySpecification {
+@@ -212,6 +218,7 @@ export class Viewer extends RefCounted implements ViewerState {
+   layerSpecification: TopLevelLayerListSpecification;
+   layout: RootLayoutContainer;
+ 
++  jsonStateServer = new TrackableValue<string>('', validateStateServer);
+   state = new CompoundTrackable();
+ 
+   dataContext: Owned<DataManagementContext>;
+@@ -319,10 +326,13 @@ export class Viewer extends RefCounted implements ViewerState {
+         'systemMemoryLimit', this.dataContext.chunkQueueManager.capacities.systemMemory.sizeLimit);
+     state.add(
+         'concurrentDownloads', this.dataContext.chunkQueueManager.capacities.download.itemLimit);
++    state.add('jsonStateServer', this.jsonStateServer);
+     state.add('selectedLayer', this.selectedLayer);
+     state.add('crossSectionBackgroundColor', this.crossSectionBackgroundColor);
+     state.add('perspectiveViewBackgroundColor', this.perspectiveViewBackgroundColor);
+ 
++    
++
+     this.registerDisposer(this.navigationState.changed.add(() => {
+       this.handleNavigationStateChanged();
+     }));
+@@ -447,7 +457,15 @@ export class Viewer extends RefCounted implements ViewerState {
+           this.uiControlVisibility.showEditStateButton, button));
+       topRow.appendChild(button);
+     }
+-
++    {
++      const button = makeTextIconButton('⇧', 'Post JSON to state server');
++      this.registerEventListener(button, 'click', () => {
++        this.postJsonState();
++      });
++      this.registerDisposer(new ElementVisibilityFromTrackableBoolean(
++          this.uiControlVisibility.showJsonPostButton, button));
++      topRow.appendChild(button);
++    }
+ 
+     {
+       const button = makeTextIconButton('?', 'Help');
+@@ -594,6 +612,63 @@ export class Viewer extends RefCounted implements ViewerState {
+     ]);
+   }
+ 
++  loadFromJsonUrl() {
++    var urlParams = new URLSearchParams(window.location.search);
++    if (urlParams.has('json_url')) {
++      let json_url = urlParams.get('json_url')!;
++      history.replaceState(null, '', removeParameterFromUrl(window.location.href, 'json_url'));
++      StatusMessage
++      .forPromise(
++        cancellableFetchOk(json_url, {}, responseJson)
++          .then(response => {
++            this.state.restoreState(response);
++          }),
++              {
++                initialMessage: `Retrieving state from json_url: ${json_url}.`,
++                delay: true,
++                errorPrefix: `Error retrieving state: `,
++              });
++      }
++  }
++
++  promptJsonStateServer(message: string): void {
++    let json_server_input = prompt(message, 'https://json.neurodata.io/v1');
++    if (json_server_input !== null) {
++      this.jsonStateServer.value = json_server_input;
++      console.log('entered for JSON server:', this.jsonStateServer.value);
++    } else {
++      this.jsonStateServer.reset();
++      console.log('cancelled');
++    }
++  }
++
++  postJsonState() {
++    // if jsonStateServer is not present prompt for value and store it in state
++    if (!this.jsonStateServer.value) {
++      this.promptJsonStateServer('No state server found. Please enter a server URL, or hit OK to use the default server.');
++    }
++    // upload state to jsonStateServer (only if it's defined)
++    if (this.jsonStateServer.value) {
++      StatusMessage.showTemporaryMessage(`Posting state to ${this.jsonStateServer.value}.`);
++      cancellableFetchOk(
++          this.jsonStateServer.value, {method: 'POST', body: JSON.stringify(this.state.toJSON())},
++          responseJson)
++          .then(response => {
++            console.log(response.uri);
++            history.replaceState(
++                null, '',
++                window.location.origin + window.location.pathname + '?json_url=' + response.uri);
++          })
++          // catch errors with upload and prompt the user if there was an error
++          .catch(() => {
++            this.promptJsonStateServer('state server not responding, enter a new one?');
++            if (this.jsonStateServer.value) {
++              this.postJsonState();
++            }
++          });
++    }
++  }
++
+   editJsonState() {
+     new StateEditorDialog(this);
+   }
