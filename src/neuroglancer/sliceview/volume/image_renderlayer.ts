@@ -26,10 +26,14 @@ import {ShaderBuilder, ShaderProgram} from 'neuroglancer/webgl/shader';
 import {addControlsToBuilder, getFallbackBuilderState, parseShaderUiControls, setControlsInShader, ShaderControlsBuilderState, ShaderControlState} from 'neuroglancer/webgl/shader_ui_controls';
 
 const DEFAULT_FRAGMENT_MAIN = `#uicontrol invlerp normalized
+#uicontrol vec3 color color(default="white")
+#uicontrol float brightness slider(default=0, min=-1, max=1, step=0.1)
+#uicontrol float contrast slider(default=0, min=-3, max=3, step=0.1)
+
 void main() {
-  emitGrayscale(normalized());
-}
-`;
+  emitRGB(
+    color * vec3(normalized() + brightness) * exp(contrast));
+}`;
 
 export function getTrackableFragmentMain(value = DEFAULT_FRAGMENT_MAIN) {
   return makeTrackableFragmentMain(value);

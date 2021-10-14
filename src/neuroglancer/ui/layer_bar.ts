@@ -19,7 +19,7 @@ import './layer_bar.css';
 
 import svg_plus from 'ikonate/icons/plus.svg';
 import {DisplayContext} from 'neuroglancer/display_context';
-import {addNewLayer, deleteLayer, LayerListSpecification, makeLayer, ManagedUserLayer, SelectedLayerState} from 'neuroglancer/layer';
+import {addNewLayer, LayerListSpecification, makeLayer, ManagedUserLayer, SelectedLayerState} from 'neuroglancer/layer';
 import {LinkedViewerNavigationState} from 'neuroglancer/layer_group_viewer';
 import {NavigationLinkType} from 'neuroglancer/navigation_state';
 import {WatchableValueInterface} from 'neuroglancer/trackable_value';
@@ -28,8 +28,8 @@ import {animationFrameDebounce} from 'neuroglancer/util/animation_frame_debounce
 import {Owned, RefCounted} from 'neuroglancer/util/disposable';
 import {removeFromParent} from 'neuroglancer/util/dom';
 import {preventDrag} from 'neuroglancer/util/drag_and_drop';
-import {makeCloseButton} from 'neuroglancer/widget/close_button';
-import {makeDeleteButton} from 'neuroglancer/widget/delete_button';
+// import {makeCloseButton} from 'neuroglancer/widget/close_button';
+// import {makeDeleteButton} from 'neuroglancer/widget/delete_button';
 import {makeIcon} from 'neuroglancer/widget/icon';
 import {PositionWidget} from 'neuroglancer/widget/position_widget';
 
@@ -42,6 +42,7 @@ class LayerWidget extends RefCounted {
   prefetchProgress = document.createElement('div');
   labelElementText = document.createTextNode('');
   valueElement = document.createElement('div');
+  layerVisibleElement: HTMLInputElement;
   maxLength: number = 0;
   prevValueText: string = '';
 
@@ -70,38 +71,51 @@ class LayerWidget extends RefCounted {
     valueContainer.className = 'neuroglancer-layer-item-value-container';
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'neuroglancer-layer-item-button-container';
-    const closeElement = makeCloseButton();
-    closeElement.title = 'Remove layer from this layer group';
-    closeElement.addEventListener('click', (event: MouseEvent) => {
-      if (this.panel.layerManager === this.panel.manager.rootLayers) {
-        // The layer bar corresponds to a TopLevelLayerListSpecification.  That means there is just
-        // a single layer group, archive the layer unconditionally.
-        this.layer.setArchived(true);
-      } else {
-        // The layer bar corresponds to a LayerSubsetSpecification.  The layer is always contained
-        // in the root LayerManager, as well as the LayerManager for each LayerSubsetSpecification.
-        if (this.layer.containers.size > 2) {
-          // Layer is contained in at least one other layer group, just remove it from this layer
-          // group.
-          this.panel.layerManager.removeManagedLayer(this.layer);
-        } else {
-          // Layer is not contained in any other layer group.  Archive it.
-          this.layer.setArchived(true);
-        }
-      }
-      event.stopPropagation();
-    });
-    const deleteElement = makeDeleteButton();
-    deleteElement.title = 'Delete this layer';
-    deleteElement.addEventListener('click', (event: MouseEvent) => {
-      deleteLayer(this.layer);
-      event.stopPropagation();
-    });
+    // const closeElement = makeCloseButton();
+    // closeElement.title = 'Remove layer from this layer group';
+    // closeElement.addEventListener('click', (event: MouseEvent) => {
+    //   if (this.panel.layerManager === this.panel.manager.rootLayers) {
+    //     // The layer bar corresponds to a TopLevelLayerListSpecification.  That means there is just
+    //     // a single layer group, archive the layer unconditionally.
+    //     this.layer.setArchived(true);
+    //   } else {
+    //     // The layer bar corresponds to a LayerSubsetSpecification.  The layer is always contained
+    //     // in the root LayerManager, as well as the LayerManager for each LayerSubsetSpecification.
+    //     if (this.layer.containers.size > 2) {
+    //       // Layer is contained in at least one other layer group, just remove it from this layer
+    //       // group.
+    //       this.panel.layerManager.removeManagedLayer(this.layer);
+    //     } else {
+    //       // Layer is not contained in any other layer group.  Archive it.
+    //       this.layer.setArchived(true);
+    //     }
+    //   }
+    //   event.stopPropagation();
+    // });
+    // const deleteElement = makeDeleteButton();
+    // deleteElement.title = 'Delete this layer';
+    // deleteElement.addEventListener('click', (event: MouseEvent) => {
+    //   deleteLayer(this.layer);
+    //   event.stopPropagation();
+    // });
     element.appendChild(layerNumberElement);
     valueContainer.appendChild(valueElement);
     valueContainer.appendChild(buttonContainer);
-    buttonContainer.appendChild(closeElement);
-    buttonContainer.appendChild(deleteElement);
+    // buttonContainer.appendChild(closeElement);
+    // buttonContainer.appendChild(deleteElement);
+    let layerVisibleElement = this.layerVisibleElement = document.createElement('input');
+    layerVisibleElement.type = 'checkbox';
+    layerVisibleElement.checked = layer.visible;
+    layerVisibleElement.title = 'Show/Hide Channel';
+    this.registerEventListener(layerVisibleElement, 'click', (event: MouseEvent) => {
+      layer.setVisible(layerVisibleElement.checked);
+      event.stopPropagation();
+    });
+    this.registerEventListener(layerVisibleElement, 'dblclick', (event: MouseEvent) => {
+      layer.setVisible(layerVisibleElement.checked);
+      event.stopPropagation();
+    });
+    element.appendChild(layerVisibleElement);
     element.appendChild(labelElement);
     element.appendChild(valueContainer);
     const positionWidget = this.registerDisposer(new PositionWidget(
@@ -114,8 +128,9 @@ class LayerWidget extends RefCounted {
       event.stopPropagation();
     });
     element.addEventListener('click', (event: MouseEvent) => {
-      if (event.ctrlKey) {
+      if (true || event.ctrlKey) {
         panel.selectedLayer.toggle(layer);
+        panel.selectedLayer.visible = true;
       } else if (event.altKey) {
         layer.pickEnabled = !layer.pickEnabled;
       } else {
@@ -138,9 +153,10 @@ class LayerWidget extends RefCounted {
     const {layer, element} = this;
     this.labelElementText.textContent = layer.name;
     element.dataset.visible = layer.visible.toString();
+    this.layerVisibleElement.checked = layer.visible;
     element.dataset.selected = (layer === this.panel.selectedLayer.layer).toString();
     element.dataset.pick = layer.pickEnabled.toString();
-    let title = `Click to ${layer.visible ? 'hide' : 'show'}, control+click to show side panel`;
+    let title = `Click to show side panel`;
     if (layer.supportsPickOption) {
       title +=
           `, alt+click to ${layer.pickEnabled ? 'disable' : 'enable'} spatial object selection`;
