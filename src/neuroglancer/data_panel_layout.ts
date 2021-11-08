@@ -189,7 +189,7 @@ function registerRelatedLayouts(
     button.addEventListener('click', () => {
       layout.container.name = relatedLayout;
     });
-    controls.appendChild(button);
+    //controls.appendChild(button);
   }
   panel.element.appendChild(controls);
 }
