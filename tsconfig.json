@@ -24,7 +24,8 @@
     },
     "lib": ["dom", "es2020", "dom.iterable"],
     "typeRoots": [],
-    "module": "ESNext"
+    "module": "ESNext",
+    "outDir": "dist/module"
   },
   "exclude": [
     "node_modules",

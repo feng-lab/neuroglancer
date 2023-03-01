@@ -218,9 +218,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
       })
     ]);
     const metaEntry = mainBuildResult.metafile;
+    /*
     const cssEntry =
         mainBuildResult.outputFiles.find(entry => entry.path.endsWith('.css')).contents;
     await fs.promises.writeFile(path.resolve(this.outDir, 'main.css'), cssEntry);
+    */
     const srcDirPrefix = this.srcDir + path.sep;
     const dependencies = Object.keys(metaEntry.inputs).filter(x => x.startsWith('src/'));
     const buildResult = await esbuild.build({
@@ -231,7 +233,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
       format: 'esm',
     });
     for (const entry of buildResult.outputFiles) {
-      if (entry.path.endsWith('.css')) continue;
+      //if (entry.path.endsWith('.css')) continue;
       await fs.promises.mkdir(path.dirname(entry.path), {recursive: true});
       await fs.promises.writeFile(entry.path, entry.contents);
     }

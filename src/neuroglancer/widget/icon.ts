@@ -44,7 +44,17 @@ export function makeIcon(options: MakeIconOptions): HTMLElement {
   const {svg} = options;
   element.className = 'neuroglancer-icon';
   if (svg !== undefined) {
-    element.innerHTML = svg;
+    if(typeof(svg) === "string" && !svg.startsWith('<svg')) {
+      /*
+      const imgElment = document.createElement('img');
+      imgElment.src = svg;
+      element.appendChild(imgElment);
+      */
+      const originSvg = svg.split("data:image/svg+xml;base64,")[1];
+      element.innerHTML = atob(originSvg);
+    } else {
+      element.innerHTML = svg;
+    }
   }
   if (options.text !== undefined) {
     element.appendChild(document.createTextNode(options.text));

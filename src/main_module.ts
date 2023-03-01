@@ -1,7 +1,7 @@
 import {bindDefaultCopyHandler, bindDefaultPasteHandler} from 'neuroglancer/ui/default_clipboard_handling';
 import {setDefaultInputEventBindings} from 'neuroglancer/ui/default_input_event_bindings';
 import {makeMinimalViewer} from 'neuroglancer/ui/minimal_viewer';
-// import {UrlHashBinding} from 'neuroglancer/ui/url_hash_binding';
+//import {UrlHashBinding} from 'neuroglancer/ui/url_hash_binding';
 
 import 'neuroglancer/datasource/dvid/register_credentials_provider';
 import 'neuroglancer/datasource/dvid/register_default';
@@ -13,6 +13,7 @@ import 'neuroglancer/image_user_layer';
 import {defaultCredentialsManager} from 'neuroglancer/credentials_provider/default_manager';
 import {credentialsKey} from 'neuroglancer/datasource/brainmaps/api';
 import {BrainmapsCredentialsProvider} from 'neuroglancer/datasource/brainmaps/credentials_provider';
+import {disableContextMenu, disableWheel} from 'neuroglancer/ui/disable_default_actions';
 
 
 /**
@@ -39,10 +40,14 @@ export function setupDefaultViewer(options: {
     defaultCredentialsManager.register(credentialsKey, () => new BrainmapsCredentialsProvider(clientId));
   }
 
+
+  disableContextMenu();
+  disableWheel();
   let viewer = makeMinimalViewer({ bundleRoot: options.bundleRoot }, options.target);
   setDefaultInputEventBindings(viewer.inputEventBindings);
 
-  /* const hashBinding = viewer.registerDisposer(new UrlHashBinding(viewer.state));
+  /*
+  const hashBinding = viewer.registerDisposer(new UrlHashBinding(viewer.state));
   viewer.registerDisposer(hashBinding.parseError.changed.add(() => {
     const {value} = hashBinding.parseError;
     if (value !== undefined) {
@@ -52,7 +57,8 @@ export function setupDefaultViewer(options: {
     }
     hashBinding.parseError;
   }));
-  hashBinding.updateFromUrlHash(); */
+  hashBinding.updateFromUrlHash(); 
+  */
 
   bindDefaultCopyHandler(viewer);
   bindDefaultPasteHandler(viewer);
