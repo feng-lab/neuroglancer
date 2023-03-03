@@ -41,9 +41,9 @@ export function setupDefaultViewer(options: {
   }
 
 
-  disableContextMenu();
-  disableWheel();
   let viewer = makeMinimalViewer({ bundleRoot: options.bundleRoot }, options.target);
+  disableContextMenu(viewer.element);
+  disableWheel(viewer.element);
   setDefaultInputEventBindings(viewer.inputEventBindings);
 
   /*
