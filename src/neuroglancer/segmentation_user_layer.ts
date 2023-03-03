@@ -178,6 +178,7 @@ export class SegmentationUserLayerColorGroupState extends RefCounted implements
     layer.setSegmentColor = this.setSegmentColor.bind(this);
     layer.hasSegmentColor = this.hasSegmentColor.bind(this);
     layer.deleteSegmentColor = this.deleteSegmentColor.bind(this);
+    layer.getSegmentColor = this.getSegmentColor.bind(this);
   }
 
   restoreState(specification: unknown) {
@@ -211,6 +212,11 @@ export class SegmentationUserLayerColorGroupState extends RefCounted implements
     } catch (e) {
       throw new Error(`Failed to delete ${idStr}'s color: ${e.message}`);
     }
+  }
+
+  getSegmentColor(idStr: String) {
+    const color = this.segmentStatedColors.getValue(Uint64.parseString(String(idStr)));
+    return color ? serializeColor(unpackRGB(color.low)) : null;
   }
 
   toJSON() {
@@ -374,9 +380,10 @@ interface SegmentationActionContext extends LayerActionContext {
 
 const Base = UserLayerWithAnnotationsMixin(UserLayer);
 export class SegmentationUserLayer extends Base {
-  setSegmentColor:Function; 
-  hasSegmentColor:Function; 
-  deleteSegmentColor:Function; 
+  setSegmentColor: Function; 
+  hasSegmentColor: Function; 
+  deleteSegmentColor: Function; 
+  getSegmentColor: Function;
 
   sliceViewRenderScaleHistogram = new RenderScaleHistogram();
   sliceViewRenderScaleTarget = trackableRenderScaleTarget(1);

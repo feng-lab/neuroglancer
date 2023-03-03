@@ -62,6 +62,10 @@ export class Uint64Map extends SharedObjectCounterpart implements
     return this.hashTable.get(key, value);
   }
 
+  getValue(key: Uint64): Uint64|null {
+    return this.hashTable.getValue(key);
+  }
+
   [Symbol.iterator]() {
     return this.hashTable.entries();
   }

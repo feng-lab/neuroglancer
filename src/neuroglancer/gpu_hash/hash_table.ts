@@ -460,6 +460,18 @@ export class HashMapUint64 extends HashTableBase {
     return true;
   }
 
+  getValue(key: Uint64): Uint64|null {
+    let h = this.indexOf(key);
+    if (h === -1) {
+      return null;
+    }
+    let value = new Uint64();
+    let { table } = this;
+    value.low = table[h + 2];
+    value.high = table[h + 3];
+    return value;
+  }
+
   protected swapPending(table: Uint32Array, offset: number) {
     let tempLow = pendingValueLow, tempHigh = pendingValueHigh;
     super.swapPending(table, offset);
