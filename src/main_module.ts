@@ -9,6 +9,8 @@ import 'neuroglancer/datasource/brainmaps/register_default';
 import 'neuroglancer/datasource/precomputed/register_default';
 import 'neuroglancer/segmentation_user_layer';
 import 'neuroglancer/image_user_layer';
+import 'neuroglancer/annotation/user_layer';
+import 'neuroglancer/single_mesh_user_layer';
 
 import {defaultCredentialsManager} from 'neuroglancer/credentials_provider/default_manager';
 import {credentialsKey} from 'neuroglancer/datasource/brainmaps/api';
