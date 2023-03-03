@@ -175,6 +175,9 @@ export class SegmentationUserLayerColorGroupState extends RefCounted implements
     this.segmentDefaultColor.changed.add(specificationChanged.dispatch);
     this.tempSegmentDefaultColor2d.changed.add(specificationChanged.dispatch);
     this.highlightColor.changed.add(specificationChanged.dispatch);
+    layer.setSegmentColor = this.setSegmentColor.bind(this);
+    layer.hasSegmentColor = this.hasSegmentColor.bind(this);
+    layer.deleteSegmentColor = this.deleteSegmentColor.bind(this);
   }
 
   restoreState(specification: unknown) {
@@ -186,11 +189,28 @@ export class SegmentationUserLayerColorGroupState extends RefCounted implements
     verifyOptionalObjectProperty(specification, SEGMENT_STATED_COLORS_JSON_KEY, y => {
       let result = verifyObjectAsMap(y, x => parseRGBColorSpecification(String(x)));
       for (let [idStr, colorVec] of result) {
-        const id = Uint64.parseString(String(idStr));
-        const color = new Uint64(packColor(colorVec));
-        this.segmentStatedColors.set(id, color);
+        this.setSegmentColor(idStr, colorVec);
       }
     });
+  }
+
+  setSegmentColor(idStr: String, colorVec: any) {
+    let colorSpec = typeof colorVec === "string" ? parseRGBColorSpecification(colorVec) : colorVec;
+    const id = Uint64.parseString(String(idStr));
+    const color = new Uint64(packColor(colorSpec));
+    this.segmentStatedColors?.set(id, color);
+  }
+
+  hasSegmentColor(idStr: String) {
+    return this.segmentStatedColors.has(Uint64.parseString(String(idStr)));
+  }
+
+  deleteSegmentColor(idStr: String) {
+    try {
+      this.segmentStatedColors.delete(Uint64.parseString(String(idStr)));
+    } catch (e) {
+      throw new Error(`Failed to delete ${idStr}'s color: ${e.message}`);
+    }
   }
 
   toJSON() {
@@ -354,6 +374,10 @@ interface SegmentationActionContext extends LayerActionContext {
 
 const Base = UserLayerWithAnnotationsMixin(UserLayer);
 export class SegmentationUserLayer extends Base {
+  setSegmentColor:Function; 
+  hasSegmentColor:Function; 
+  deleteSegmentColor:Function; 
+
   sliceViewRenderScaleHistogram = new RenderScaleHistogram();
   sliceViewRenderScaleTarget = trackableRenderScaleTarget(1);
 
@@ -386,6 +410,7 @@ export class SegmentationUserLayer extends Base {
     this.tabs.value = 'segments';
     this.manager.root.selectedLayer.layer = this.managedLayer;
   };
+
 
   displayState = new SegmentationUserLayerDisplayState(this);
 
