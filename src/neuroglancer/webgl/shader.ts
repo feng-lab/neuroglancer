@@ -458,6 +458,10 @@ export class ShaderBuilder {
     this.vertexCode.add(code);
   }
 
+  getVertexCode(): string {
+    return this.vertexCode.toString();
+  }
+
   addFragmentCode(code: ShaderCodePart) {
     this.fragmentCode.add(code);
   }

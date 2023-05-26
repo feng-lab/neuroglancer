@@ -79,9 +79,17 @@ void setEllipsoidFillColor(vec4 color) {
 `);
   }
 
+  get invokeColorCode() {
+    return this.isInvokePropertyCode("ellipsoidColor") ? 
+    `
+      setEllipsoidFillColor(a_prop_ellipsoidColor);
+    ` : ""
+  }
+
   enable(
       shaderGetter: AnnotationShaderGetter, context: AnnotationRenderContext,
       callback: (shader: ShaderProgram) => void) {
+    this.shaderControlState.builderState.value.referencedProperties = ["ellipsoidColor"];
     super.enable(shaderGetter, context, shader => {
       const binder = shader.vertexShaderInputBinders['CenterAndRadii'];
       binder.enable(1);
@@ -97,7 +105,7 @@ void setEllipsoidFillColor(vec4 color) {
  * Render an ellipsoid as a transformed triangulated sphere.
  */
 class PerspectiveRenderHelper extends RenderHelper {
-  private sphereRenderHelper = this.registerDisposer(new SphereRenderHelper(this.gl, 10, 10));
+  private sphereRenderHelper = this.registerDisposer(new SphereRenderHelper(this.gl, 40, 40));
 
   private shaderGetter =
       this.getDependentShader('annotation/ellipsoid/projection', (builder: ShaderBuilder) => {
@@ -114,6 +122,7 @@ if (params.cull) {
 }
 vClipCoefficient = params.clipCoefficient;
 ${this.invokeUserMain}
+${this.invokeColorCode}
 emitSphere(uModelViewProjection, uNormalTransform, params.subspaceCenter, params.subspaceRadii, uLightDirection);
 ${this.setPartIndex(builder)};
 `);
@@ -211,6 +220,7 @@ if (centerOrient.valid) {
 }
 vCircleCoord = cornerOffset;
 ${this.invokeUserMain}
+${this.invokeColorCode}
 ${this.setPartIndex(builder)};
 `);
         builder.setFragmentMain(`

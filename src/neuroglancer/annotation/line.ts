@@ -84,8 +84,10 @@ for (int i = 0; i < ${rank}; ++i) {
   vModelPosition[i] = mix(modelPositionA[i], modelPositionB[i], getLineEndpointCoefficient());
 }
 ng_LineWidth = 1.0;
+${this.invokeWidthCode}
 vColor = vec4(0.0, 0.0, 0.0, 0.0);
 ${this.invokeUserMain}
+${this.invokeColorCode}
 emitLine(uModelViewProjection * vec4(projectModelVectorToSubspace(modelPositionA), 1.0),
          uModelViewProjection * vec4(projectModelVectorToSubspace(modelPositionB), 1.0),
          ng_LineWidth);
@@ -98,6 +100,19 @@ emitAnnotation(vec4(vColor.rgb, vColor.a * getLineAlpha() *
                                 clipCoefficient));
 `);
       });
+
+  get invokeWidthCode () {
+    return this.isInvokePropertyCode("lineWidth")? 
+    `ng_LineWidth = a_prop_lineWidth;
+    ` : ""
+  }
+
+  get invokeColorCode () {
+    return this.isInvokePropertyCode("lineColor")? 
+    `
+      setLineColor(a_prop_lineColor);
+    ` : ""
+  }
 
   private endpointShaderGetter =
       this.getDependentShader('annotation/line/endpoint', (builder: ShaderBuilder) => {
@@ -151,6 +166,7 @@ emitAnnotation(color);
   enable(
       shaderGetter: AnnotationShaderGetter, context: AnnotationRenderContext,
       callback: (shader: ShaderProgram) => void) {
+        this.shaderControlState.builderState.value.referencedProperties = ["lineWidth", "lineColor"];
     super.enable(shaderGetter, context, shader => {
       const binder = shader.vertexShaderInputBinders['VertexPosition'];
       binder.enable(1);

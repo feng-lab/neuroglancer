@@ -426,6 +426,11 @@ if (ng_discardValue) {
     }
   }
 
+  isInvokePropertyCode(property: string) : boolean {
+    const {properties} = this;
+    return !!(properties.filter(p => p.identifier === property).length);
+  }
+
   enable(
       shaderGetter: AnnotationShaderGetter, context: AnnotationRenderContext,
       callback: (shader: ShaderProgram) => void) {

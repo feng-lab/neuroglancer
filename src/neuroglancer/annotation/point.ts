@@ -61,10 +61,19 @@ if (clipCoefficient == 0.0) {
   return;
 }
 ${this.invokeUserMain}
+${this.invokeColorCode}
 vColor.a *= clipCoefficient;
 vBorderColor.a *= clipCoefficient;
 ${this.setPartIndex(builder)};
 `);
+  }
+
+  get invokeColorCode() {
+    return this.isInvokePropertyCode("pointColor") ? 
+    `
+      setPointMarkerColor(a_prop_pointColor);
+      setPointMarkerBorderColor(a_prop_pointColor);
+    ` : "";
   }
 
   private shaderGetter3d =
@@ -137,6 +146,7 @@ emitAnnotation(vec4(color.rgb, color.a * ${this.getCrossSectionFadeFactor()}));
   enable(
       shaderGetter: AnnotationShaderGetter, context: AnnotationRenderContext,
       callback: (shader: ShaderProgram) => void) {
+    this.shaderControlState.builderState.value.referencedProperties = ["pointColor"];
     super.enable(shaderGetter, context, shader => {
       const binder = shader.vertexShaderInputBinders['VertexPosition'];
       binder.enable(1);
