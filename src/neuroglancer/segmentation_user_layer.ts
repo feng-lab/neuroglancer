@@ -24,7 +24,7 @@ import {MeshLayer, MeshSource, MultiscaleMeshLayer, MultiscaleMeshSource} from '
 import {RenderLayerTransform} from 'neuroglancer/render_coordinate_transform';
 import {RenderScaleHistogram, trackableRenderScaleTarget} from 'neuroglancer/render_scale_statistics';
 import {SegmentColorHash} from 'neuroglancer/segment_color';
-import {augmentSegmentId, bindSegmentListWidth, makeSegmentWidget, maybeAugmentSegmentId, registerCallbackWhenSegmentationDisplayStateChanged, SegmentationColorGroupState, SegmentationDisplayState, SegmentationGroupState, SegmentSelectionState, Uint64MapEntry} from 'neuroglancer/segmentation_display_state/frontend';
+import {augmentSegmentId, bindSegmentListWidth, makeSegmentWidget, maybeAugmentSegmentId, registerCallbackWhenSegmentationDisplayStateChanged, SegmentationColorGroupState, SegmentationDisplayState, SegmentationGroupState, SegmentFocusState, SegmentSelectionState, Uint64MapEntry} from 'neuroglancer/segmentation_display_state/frontend';
 import {getPreprocessedSegmentPropertyMap, PreprocessedSegmentPropertyMap, SegmentPropertyMap} from 'neuroglancer/segmentation_display_state/property_map';
 import {LocalSegmentationGraphSource} from 'neuroglancer/segmentation_graph/local';
 import {SegmentationGraphSource, SegmentationGraphSourceConnection, SegmentationGraphSourceTab, VisibleSegmentEquivalencePolicy} from 'neuroglancer/segmentation_graph/source';
@@ -47,7 +47,7 @@ import {Uint64Set} from 'neuroglancer/uint64_set';
 import {packColor, parseRGBColorSpecification, serializeColor, TrackableOptionalRGB, unpackRGB} from 'neuroglancer/util/color';
 import {Borrowed, Owned, RefCounted} from 'neuroglancer/util/disposable';
 import {vec3, vec4} from 'neuroglancer/util/geom';
-import {parseArray, verifyFiniteNonNegativeFloat, verifyObjectAsMap, verifyOptionalObjectProperty, verifyString} from 'neuroglancer/util/json';
+import {parseArray, verifyBoolean, verifyFiniteNonNegativeFloat, verifyObjectAsMap, verifyOptionalObjectProperty, verifyString} from 'neuroglancer/util/json';
 import {Signal} from 'neuroglancer/util/signal';
 import {Uint64} from 'neuroglancer/util/uint64';
 import {makeWatchableShaderError} from 'neuroglancer/webgl/dynamic_shader';
@@ -75,6 +75,7 @@ const SEGMENTS_JSON_KEY = 'segments';
 const EQUIVALENCES_JSON_KEY = 'equivalences';
 const COLOR_SEED_JSON_KEY = 'colorSeed';
 const SEGMENT_STATED_COLORS_JSON_KEY = 'segmentColors';
+const SEGMENT_STATED_COLORS_TYPE_JSON_KEY = 'segmentColorsType';
 const MESH_RENDER_SCALE_JSON_KEY = 'meshRenderScale';
 const CROSS_SECTION_RENDER_SCALE_JSON_KEY = 'crossSectionRenderScale';
 const SKELETON_RENDERING_JSON_KEY = 'skeletonRendering';
@@ -85,6 +86,7 @@ const LINKED_SEGMENTATION_GROUP_JSON_KEY = 'linkedSegmentationGroup';
 const LINKED_SEGMENTATION_COLOR_GROUP_JSON_KEY = 'linkedSegmentationColorGroup';
 const SEGMENT_DEFAULT_COLOR_JSON_KEY = 'segmentDefaultColor';
 const ANCHOR_SEGMENT_JSON_KEY = 'anchorSegment';
+const DISABLE_RESPONSE_DBLCLICK0_EVENT = 'disableResponseDblclick0Event';
 
 export const SKELETON_RENDERING_SHADER_CONTROL_TOOL_ID = 'skeletonShaderControl';
 
@@ -96,6 +98,15 @@ export class SegmentationUserLayerGroupState extends RefCounted implements Segme
     this.visibleSegments.changed.add(specificationChanged.dispatch);
     this.hideSegmentZero.changed.add(specificationChanged.dispatch);
     this.segmentQuery.changed.add(specificationChanged.dispatch);
+  }
+
+  setVisibleSegments(ids: Array<String>) {
+    if(ids?.length) {
+      ids.forEach(id => {
+        const unit64_id = Uint64.parseString(String(id));
+        this.visibleSegments.set(unit64_id, true);
+      })
+    }
   }
 
   restoreState(specification: unknown) {
@@ -188,7 +199,11 @@ export class SegmentationUserLayerColorGroupState extends RefCounted implements
         specification, SEGMENT_DEFAULT_COLOR_JSON_KEY,
         value => this.segmentDefaultColor.restoreState(value));
     verifyOptionalObjectProperty(specification, SEGMENT_STATED_COLORS_JSON_KEY, y => {
-      let result = verifyObjectAsMap(y, x => parseRGBColorSpecification(String(x)));
+      let result = verifyObjectAsMap(y, x => {
+        let type = verifyOptionalObjectProperty(specification, SEGMENT_STATED_COLORS_TYPE_JSON_KEY, verifyString);
+        return type === "vec3" ? vec3.fromValues(x[0], x[1], x[2]) : 
+        parseRGBColorSpecification(String(x))
+      });
       for (let [idStr, colorVec] of result) {
         this.setSegmentColor(idStr, colorVec);
       }
@@ -317,6 +332,7 @@ class SegmentationUserLayerDisplayState implements SegmentationDisplayState {
   }
 
   segmentSelectionState = new SegmentSelectionState();
+  segmentFocusState = new SegmentFocusState();
   selectedAlpha = trackableAlphaValue(0.5);
   saturation = trackableAlphaValue(1.0);
   notSelectedAlpha = trackableAlphaValue(0);
@@ -384,11 +400,13 @@ export class SegmentationUserLayer extends Base {
   hasSegmentColor: Function; 
   deleteSegmentColor: Function; 
   getSegmentColor: Function;
+  disableResponseDblclick0Event: boolean | undefined;
 
   sliceViewRenderScaleHistogram = new RenderScaleHistogram();
   sliceViewRenderScaleTarget = trackableRenderScaleTarget(1);
 
   graphConnection = new WatchableValue<SegmentationGraphSourceConnection|undefined>(undefined);
+  toggleSegment = new WatchableValue<string | undefined>(undefined); 
 
 
   bindSegmentListWidth(element: HTMLElement) {
@@ -435,6 +453,7 @@ export class SegmentationUserLayer extends Base {
       this.specificationChanged.dispatch();
     }, this.displayState.segmentationColorGroupState));
     this.displayState.segmentSelectionState.bindTo(this.manager.layerSelectedValues, this);
+    this.displayState.segmentFocusState.bindTo(this.manager.layerSelectedValues, this);
     this.displayState.selectedAlpha.changed.add(this.specificationChanged.dispatch);
     this.displayState.saturation.changed.add(this.specificationChanged.dispatch);
     this.displayState.notSelectedAlpha.changed.add(this.specificationChanged.dispatch);
@@ -668,6 +687,7 @@ export class SegmentationUserLayer extends Base {
     }
     this.displayState.segmentationGroupState.value.restoreState(specification);
     this.displayState.segmentationColorGroupState.value.restoreState(specification);
+    this.disableResponseDblclick0Event = verifyOptionalObjectProperty(specification, DISABLE_RESPONSE_DBLCLICK0_EVENT, verifyBoolean);
   }
 
   toJSON() {
@@ -721,6 +741,7 @@ export class SegmentationUserLayer extends Base {
       }
       case 'select': {
         if (!this.pick.value) break;
+        if (this.disableResponseDblclick0Event) break;
         const {segmentSelectionState} = this.displayState;
         if (segmentSelectionState.hasSelectedSegment) {
           const segment = segmentSelectionState.selectedSegment;
@@ -732,6 +753,7 @@ export class SegmentationUserLayer extends Base {
           context.defer(() => {
             if (context.segmentationToggleSegmentState === newVisible) {
               visibleSegments.set(segment, newVisible);
+              this.toggleSegment.value = segment.toJSON();
             }
           });
         }

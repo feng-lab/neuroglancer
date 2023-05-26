@@ -56,7 +56,7 @@ export class Uint64MapEntry {
   }
 }
 
-export class SegmentSelectionState extends RefCounted {
+export class SegmentSelectionAndFocusState extends RefCounted {
   selectedSegment = new Uint64();
   baseSelectedSegment = new Uint64();
   hasSelectedSegment = false;
@@ -68,6 +68,10 @@ export class SegmentSelectionState extends RefCounted {
 
   get baseValue() {
     return this.hasSelectedSegment ? this.baseSelectedSegment : undefined;
+  }
+
+  toJSON() {
+    return this.hasSelectedSegment ? this.selectedSegment.toJSON() : undefined;
   }
 
   set(value: number|Uint64MapEntry|Uint64|null|undefined, hideSegmentZero = false) {
@@ -120,14 +124,29 @@ export class SegmentSelectionState extends RefCounted {
     return this.hasSelectedSegment && Uint64.equal(value, this.selectedSegment);
   }
 
+  protected _set(layerSelectedValues: LayerSelectedValues, userLayer: SegmentationUserLayer) {
+    const state = layerSelectedValues.get(userLayer);
+    let value: any = undefined;
+    if (state !== undefined) {
+      value = state.value;
+    }
+    this.set(value, userLayer.displayState.segmentationGroupState.value.hideSegmentZero.value);
+  }
+}
+
+export class SegmentSelectionState extends SegmentSelectionAndFocusState {
   bindTo(layerSelectedValues: LayerSelectedValues, userLayer: SegmentationUserLayer) {
     this.registerDisposer(layerSelectedValues.changed.add(() => {
-      const state = layerSelectedValues.get(userLayer);
-      let value: any = undefined;
-      if (state !== undefined) {
-        value = state.value;
-      }
-      this.set(value, userLayer.displayState.segmentationGroupState.value.hideSegmentZero.value);
+      this._set(layerSelectedValues, userLayer);
+    }));
+  }
+}
+
+export class SegmentFocusState extends SegmentSelectionState {
+  bindTo(layerSelectedValues: LayerSelectedValues, userLayer: SegmentationUserLayer) {
+    this.registerDisposer(layerSelectedValues.changed.add(() => {
+      layerSelectedValues.update();
+      this._set(layerSelectedValues, userLayer);
     }));
   }
 }
@@ -150,6 +169,7 @@ export interface SegmentationColorGroupState {
 
 export interface SegmentationDisplayState {
   segmentSelectionState: SegmentSelectionState;
+  segmentFocusState: SegmentFocusState;
   saturation: TrackableAlphaValue;
   hoverHighlight: WatchableValueInterface<boolean>;
   baseSegmentColoring: WatchableValueInterface<boolean>;
