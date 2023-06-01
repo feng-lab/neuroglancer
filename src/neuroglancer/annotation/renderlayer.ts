@@ -18,6 +18,7 @@ import 'neuroglancer/annotation/bounding_box';
 import 'neuroglancer/annotation/line';
 import 'neuroglancer/annotation/point';
 import 'neuroglancer/annotation/ellipsoid';
+import 'neuroglancer/annotation/sphere';
 
 import {AnnotationBase, AnnotationSerializer, AnnotationSource, annotationTypes, formatAnnotationPropertyValue, SerializedAnnotations} from 'neuroglancer/annotation';
 import {AnnotationLayerState, OptionalSegmentationDisplayState} from 'neuroglancer/annotation/annotation_layer_state';
@@ -437,8 +438,9 @@ function AnnotationRenderLayer<TBase extends AnyConstructor<VisibilityTrackedRen
         pickId = renderContext.pickIDs.register(this, chunk.numPickIds, 0, 0, chunk);
       }
       const hoverValue = base.hoverState.value;
+      const { viewProjectionMat, viewMatrix, projectionMat: projectionMatrix } = renderContext.projectionParameters;
       const modelViewProjectionMatrix = mat4.multiply(
-          tempMat, renderContext.projectionParameters.viewProjectionMat,
+          tempMat, viewProjectionMat,
           chunkDisplayTransform.displaySubspaceModelMatrix);
       const context: AnnotationRenderContext = {
         annotationLayer: base,
@@ -449,6 +451,8 @@ function AnnotationRenderLayer<TBase extends AnyConstructor<VisibilityTrackedRen
         bufferOffset: 0,
         count: 0,
         modelViewProjectionMatrix,
+        viewMatrix,
+        projectionMatrix,
         modelClipBounds: state.modelClipBounds,
         subspaceMatrix: state.renderSubspaceTransform,
         renderSubspaceModelMatrix: chunkDisplayTransform.displaySubspaceModelMatrix,

@@ -44,6 +44,8 @@ export interface AnnotationRenderContext {
   basePickId: number;
   selectedIndex: number;
   modelViewProjectionMatrix: mat4;
+  projectionMatrix: mat4;
+  viewMatrix: mat4;
   subspaceMatrix: Float32Array;
   renderSubspaceModelMatrix: mat4;
   renderSubspaceInvModelMatrix: mat4;
@@ -337,6 +339,9 @@ void setBoundingBoxBorderColor(vec4 color);
 void setBoundingBoxBorderWidth(float size);
 void setBoundingBoxFillColor(vec4 color);
 
+void setSphereRadius(float radius); 
+void setSphereColor(vec4 color);
+
 void setEndpointMarkerColor(vec3 startColor, vec3 endColor) {
   setEndpointMarkerColor(vec4(startColor, 1.0), vec4(endColor, 1.0));
 }
@@ -358,6 +363,7 @@ void setColor(vec4 color) {
   setEndpointMarkerColor(color);
   setBoundingBoxBorderColor(color);
   setEllipsoidFillColor(vec4(color.rgb, color.a * (PROJECTION_VIEW ? 1.0 : 0.5)));
+  setSphereColor(color);
 }
 void setEllipsoidFillColor(vec3 color) { setEllipsoidFillColor(vec4(color, 1.0)); }
 

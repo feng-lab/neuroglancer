@@ -333,6 +333,16 @@ export class AnnotationLayerView extends Tab {
       },
     });
     mutableControls.appendChild(ellipsoidButton);
+
+    const sphereButton = makeIcon({
+      text: annotationTypeHandlers[AnnotationType.SPHERE].icon,
+      title: 'Annotate sphere',
+      onClick: () => {
+        this.layer.tool.value = new PlaceSphereTool(this.layer, {});
+      },
+    });
+    mutableControls.appendChild(sphereButton);
+
     toolbox.appendChild(mutableControls);
     this.element.appendChild(toolbox);
 
@@ -812,6 +822,7 @@ const ANNOTATE_POINT_TOOL_ID = 'annotatePoint';
 const ANNOTATE_LINE_TOOL_ID = 'annotateLine';
 const ANNOTATE_BOUNDING_BOX_TOOL_ID = 'annotateBoundingBox';
 const ANNOTATE_ELLIPSOID_TOOL_ID = 'annotateSphere';
+const ANNOTATE_SPHERE_TOOL_ID = 'annotateAtlasSphere';
 
 export class PlacePointTool extends PlaceAnnotationTool {
   trigger(mouseState: MouseSelectionState) {
@@ -843,6 +854,40 @@ export class PlacePointTool extends PlaceAnnotationTool {
 
   toJSON() {
     return ANNOTATE_POINT_TOOL_ID;
+  }
+}
+
+export class PlaceSphereTool extends PlaceAnnotationTool {
+  trigger(mouseState: MouseSelectionState) {
+    const {annotationLayer} = this;
+    if (annotationLayer === undefined) {
+      // Not yet ready.
+      return;
+    }
+    if (mouseState.updateUnconditionally()) {
+      const center = getMousePositionInAnnotationCoordinates(mouseState, annotationLayer);
+      console.log('center', center);
+      if (center === undefined) return;
+      const annotation: Annotation = {
+        id: '',
+        description: '',
+        relatedSegments: getSelectedAssociatedSegments(annotationLayer),
+        center,
+        type: AnnotationType.SPHERE,
+        properties: annotationLayer.source.properties.map(x => x.default),
+      };
+      const reference = annotationLayer.source.add(annotation, /*commit=*/true);
+      this.layer.selectAnnotation(annotationLayer, reference.id, true);
+      reference.dispose();
+    }
+  }
+
+  get description() {
+    return `annotate sphere`;
+  }
+
+  toJSON() {
+    return ANNOTATE_SPHERE_TOOL_ID;
   }
 }
 
@@ -1073,6 +1118,9 @@ registerLegacyTool(
 registerLegacyTool(
     ANNOTATE_ELLIPSOID_TOOL_ID,
     (layer, options) => new PlaceEllipsoidTool(<UserLayerWithAnnotations>layer, options));
+registerLegacyTool(
+    ANNOTATE_SPHERE_TOOL_ID,
+    (layer, options) => new PlaceSphereTool(<UserLayerWithAnnotations>layer, options));
 
 const newRelatedSegmentKeyMap = EventActionMap.fromObject({
   'enter': {action: 'commit'},
