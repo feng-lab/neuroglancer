@@ -23,6 +23,7 @@ import {AnnotationRenderContext, AnnotationRenderHelper, AnnotationShaderGetter,
 import {ShaderBuilder, ShaderProgram} from 'neuroglancer/webgl/shader';
 import {defineVectorArrayVertexShaderInput} from 'neuroglancer/webgl/shader_lib';
 import { AtlasSphereRenderHelper } from '../webgl/atlasSpheres';
+import { mat4 } from '../util/geom';
 
 class RenderHelper extends AnnotationRenderHelper {
   private sphereRenderHelper = this.registerDisposer(new AtlasSphereRenderHelper(this.gl));
@@ -131,13 +132,8 @@ ${this.setPartIndex(builder)};
     //  0.0, 0.0, -2.0202, 0.0
     //])
 
-    const uView = new Float32Array([
-       1.0, 0.0, -0.0, 0.0,
-       0.0, -1.0, -0.0, 0.0,
-       -0.0, 0.0, -1.0, 0.0,
-       -0.0, -0.0, -2.0, 1.0
-    ])
-    const uModel = new Float32Array(16).fill(1);
+    //const uModel = new Float32Array(16).fill(1);
+    const uModel = mat4.create();
      this.enable(shaderGetter, context, shader => {
        const { gl } = shader;
        console.log('view Matrix', context.viewMatrix);
@@ -146,11 +142,12 @@ ${this.setPartIndex(builder)};
          /*transpose=*/ false, 
          //uProjection);
          context.projectionMatrix);
+        console.log('projectionMatrix', context.projectionMatrix);   
        gl.uniformMatrix4fv(
          shader.uniform('uView'), 
          /*transpose=*/ false, 
-         uView);
-         //context.viewMatrix);
+         //uView);
+         context.viewMatrix);
        gl.uniformMatrix4fv(
          shader.uniform('uModel'), 
          /*transpose=*/ false, 
