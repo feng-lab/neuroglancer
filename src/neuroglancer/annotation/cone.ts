@@ -40,8 +40,9 @@ class RenderHelper extends AnnotationRenderHelper {
   defineShader(builder: ShaderBuilder) {
     const {rank} = this;
     defineVectorArrayVertexShaderInput(
-        builder, 'float', WebGL2RenderingContext.FLOAT, /*normalized=*/ false, 'CenterAndRadii',
-        rank, 2);
+        builder, 'float', WebGL2RenderingContext.FLOAT, /*normalized=*/ false, 'CenterAndRadius',
+        rank+1, 2);
+    this.coneRenderHelper.defineShader(builder);
     builder.addVertexCode(`
 
 void setConeBaseColor(vec4 color) {
@@ -88,7 +89,6 @@ void setTopRadius(float topRadius) {
   private shaderGetter =
       this.getDependentShader('annotation/cone', (builder: ShaderBuilder) => {
         this.defineShader(builder);
-        this.coneRenderHelper.defineShader(builder);
         builder.addVertexCode(`
           void setPartIndex() {
             highp uint pickID = uPickID;
@@ -121,7 +121,7 @@ void setTopRadius(float topRadius) {
       callback: (shader: ShaderProgram) => void) {
     this.shaderControlState.builderState.value.referencedProperties = ["coneColor", "coneTopColor", "coneBaseColor"];
     super.enable(shaderGetter, context, shader => {
-      const binder = shader.vertexShaderInputBinders['CenterAndRadii'];
+      const binder = shader.vertexShaderInputBinders['CenterAndRadius'];
       binder.enable(1);
       this.gl.bindBuffer(WebGL2RenderingContext.ARRAY_BUFFER, context.buffer.buffer);
       binder.bind(this.geometryDataStride, context.bufferOffset);

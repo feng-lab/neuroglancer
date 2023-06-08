@@ -133,7 +133,7 @@ vec4 coneFragmentFunc(float bradius, float tradius, float invSqrHeight, float he
   if (capTest > 0.0 || dot(rayDirection, -vAxis) > dot(normalize(baseEdge-topEdge), -vAxis)) {
     ipoint = ipoint + rayDirection *
       length(vTop - ipoint) * dot(normalize(vTop - ipoint), -vAxis) / dot(rayDirection, -vAxis);
-    if (dot(ipoint-top, ipoint-top) > tradius2)
+    if (dot(ipoint-vTop, ipoint-vTop) > tradius2)
       discard;
 
     color = vTopColor;
@@ -143,7 +143,7 @@ vec4 coneFragmentFunc(float bradius, float tradius, float invSqrHeight, float he
 
   if (capTest < 0.0) {
     ipoint = ipoint + rayDirection *
-      length(vBase - ipoint) * dot(normalize(vBase - ipoint), -axis) / dot(rayDirection, -vAxis);
+      length(vBase - ipoint) * dot(normalize(vBase - ipoint), -vAxis) / dot(rayDirection, -vAxis);
     if (dot(ipoint-vBase, ipoint-vBase) > bradius2)
       discard;
 

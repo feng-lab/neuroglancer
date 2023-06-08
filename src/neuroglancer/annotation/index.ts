@@ -811,9 +811,9 @@ export const annotationTypeHandlers: Record<AnnotationType, AnnotationTypeHandle
         buffer: DataView, offset: number, isLittleEndian: boolean, rank: number,
         annotation: Cone) {
       offset = serializeFloatVector(buffer, offset, isLittleEndian, rank, annotation.base);
-      buffer.setFloat32(offset, annotation.baseRadius);
+      buffer.setFloat32(offset, annotation.baseRadius, isLittleEndian);
       offset = serializeFloatVector(buffer, offset + 4, isLittleEndian, rank, annotation.axis);
-      buffer.setFloat32(offset, annotation.axisRadius);
+      buffer.setFloat32(offset, annotation.axisRadius, isLittleEndian);
     },
     deserialize:
         (buffer: DataView, offset: number, isLittleEndian: boolean, rank: number, id: string):
