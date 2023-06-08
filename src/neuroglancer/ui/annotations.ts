@@ -20,7 +20,7 @@
 
 import './annotations.css';
 
-import {Annotation, AnnotationId, AnnotationPropertySerializer, AnnotationReference, AnnotationSource, annotationToJson, AnnotationType, annotationTypeHandlers, AxisAlignedBoundingBox, Ellipsoid, formatNumericProperty, Line} from 'neuroglancer/annotation';
+import {Annotation, AnnotationId, AnnotationPropertySerializer, AnnotationReference, AnnotationSource, annotationToJson, AnnotationType, annotationTypeHandlers, AxisAlignedBoundingBox, Cone, Ellipsoid, formatNumericProperty, Line} from 'neuroglancer/annotation';
 import {AnnotationDisplayState, AnnotationLayerState} from 'neuroglancer/annotation/annotation_layer_state';
 import {MultiscaleAnnotationSource} from 'neuroglancer/annotation/frontend_source';
 import {AnnotationLayer, PerspectiveViewAnnotationLayer, SliceViewAnnotationLayer, SpatiallyIndexedPerspectiveViewAnnotationLayer, SpatiallyIndexedSliceViewAnnotationLayer} from 'neuroglancer/annotation/renderlayer';
@@ -342,6 +342,17 @@ export class AnnotationLayerView extends Tab {
       },
     });
     mutableControls.appendChild(sphereButton);
+
+    const coneButton = makeIcon({
+      text: annotationTypeHandlers[AnnotationType.CONE].icon,
+      title: 'Annotate cone',
+      onClick: () => {
+        this.layer.tool.value = new PlaceConeTool(this.layer, {});
+      },
+    });
+    mutableControls.appendChild(coneButton);
+
+    toolbox.appendChild(mutableControls);
 
     toolbox.appendChild(mutableControls);
     this.element.appendChild(toolbox);
@@ -823,6 +834,7 @@ const ANNOTATE_LINE_TOOL_ID = 'annotateLine';
 const ANNOTATE_BOUNDING_BOX_TOOL_ID = 'annotateBoundingBox';
 const ANNOTATE_ELLIPSOID_TOOL_ID = 'annotateSphere';
 const ANNOTATE_SPHERE_TOOL_ID = 'annotateAtlasSphere';
+const ANNOTATE_CONE_TOOL_ID = 'annotateCone';
 
 export class PlacePointTool extends PlaceAnnotationTool {
   trigger(mouseState: MouseSelectionState) {
@@ -1106,6 +1118,47 @@ class PlaceEllipsoidTool extends TwoStepAnnotationTool {
   }
 }
 
+class PlaceConeTool extends TwoStepAnnotationTool {
+  getInitialAnnotation(mouseState: MouseSelectionState, annotationLayer: AnnotationLayerState):
+      Annotation {
+    const point = getMousePositionInAnnotationCoordinates(mouseState, annotationLayer);
+
+    return <Cone>{
+      type: AnnotationType.CONE,
+      id: '',
+      description: '',
+      base: point,
+      baseRadius: 1.0,
+      axisRadius: 2.0,
+      axis: point,
+      properties: annotationLayer.source.properties.map(x => x.default),
+    };
+  }
+
+  getUpdatedAnnotation(
+      oldAnnotation: Cone, mouseState: MouseSelectionState,
+      annotationLayer: AnnotationLayerState) {
+    const axis = getMousePositionInAnnotationCoordinates(mouseState, annotationLayer);
+    if (axis === undefined) return oldAnnotation;
+    const base = oldAnnotation.base;
+    const rank = base.length;
+    for (let i = 0; i < rank; ++i) {
+      axis[i] = Math.abs(axis[i] - base[i]);
+    }
+    return <Cone>{
+      ...oldAnnotation,
+      axis
+    };
+  }
+  get description() {
+    return `annotate cone`;
+  }
+
+  toJSON() {
+    return ANNOTATE_CONE_TOOL_ID;
+  }
+}
+
 registerLegacyTool(
     ANNOTATE_POINT_TOOL_ID,
     (layer, options) => new PlacePointTool(<UserLayerWithAnnotations>layer, options));
@@ -1121,6 +1174,9 @@ registerLegacyTool(
 registerLegacyTool(
     ANNOTATE_SPHERE_TOOL_ID,
     (layer, options) => new PlaceSphereTool(<UserLayerWithAnnotations>layer, options));
+registerLegacyTool(
+    ANNOTATE_CONE_TOOL_ID,
+    (layer, options) => new PlaceConeTool(<UserLayerWithAnnotations>layer, options));
 
 const newRelatedSegmentKeyMap = EventActionMap.fromObject({
   'enter': {action: 'commit'},

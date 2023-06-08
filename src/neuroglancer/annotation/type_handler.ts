@@ -29,6 +29,7 @@ import {ParameterizedContextDependentShaderGetter, parameterizedEmitterDependent
 import {defineInvlerpShaderFunction, enableLerpShaderFunction} from 'neuroglancer/webgl/lerp';
 import {ShaderBuilder, ShaderModule, ShaderProgram} from 'neuroglancer/webgl/shader';
 import {addControlsToBuilder, setControlsInShader, ShaderControlsBuilderState, ShaderControlState} from 'neuroglancer/webgl/shader_ui_controls';
+import { ProjectionParameters } from '../projection_parameters';
 
 const DEBUG_HISTOGRAMS = false;
 
@@ -44,8 +45,7 @@ export interface AnnotationRenderContext {
   basePickId: number;
   selectedIndex: number;
   modelViewProjectionMatrix: mat4;
-  projectionMatrix: mat4;
-  viewMatrix: mat4;
+  projectionParameters: ProjectionParameters;
   subspaceMatrix: Float32Array;
   renderSubspaceModelMatrix: mat4;
   renderSubspaceInvModelMatrix: mat4;
@@ -342,6 +342,12 @@ void setBoundingBoxFillColor(vec4 color);
 void setSphereRadius(float radius); 
 void setSphereColor(vec4 color);
 
+void setConeBaseColor(vec4 color);
+void setConeTopColor(vec4 color);
+void setConeColor(vec4 color);
+void setBaseRadius(float baseRadius);
+void setTopRadius(float topRadius);
+
 void setEndpointMarkerColor(vec3 startColor, vec3 endColor) {
   setEndpointMarkerColor(vec4(startColor, 1.0), vec4(endColor, 1.0));
 }
@@ -364,6 +370,7 @@ void setColor(vec4 color) {
   setBoundingBoxBorderColor(color);
   setEllipsoidFillColor(vec4(color.rgb, color.a * (PROJECTION_VIEW ? 1.0 : 0.5)));
   setSphereColor(color);
+  setConeColor(color);
 }
 void setEllipsoidFillColor(vec3 color) { setEllipsoidFillColor(vec4(color, 1.0)); }
 

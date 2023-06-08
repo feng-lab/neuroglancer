@@ -51,7 +51,8 @@ export enum AnnotationType {
   LINE,
   AXIS_ALIGNED_BOUNDING_BOX,
   ELLIPSOID,
-  SPHERE
+  SPHERE,
+  CONE
 }
 
 export const annotationTypes = [
@@ -59,7 +60,8 @@ export const annotationTypes = [
   AnnotationType.LINE,
   AnnotationType.AXIS_ALIGNED_BOUNDING_BOX,
   AnnotationType.ELLIPSOID,
-  AnnotationType.SPHERE
+  AnnotationType.SPHERE,
+  AnnotationType.CONE
 ];
 
 export interface AnnotationPropertySpecBase {
@@ -551,18 +553,20 @@ export interface Ellipsoid extends AnnotationBase {
   type: AnnotationType.ELLIPSOID;
 }
 
-export interface Ellipsoid extends AnnotationBase {
-  center: Float32Array;
-  radii: Float32Array;
-  type: AnnotationType.ELLIPSOID;
-}
-
 export interface Sphere extends AnnotationBase {
   center: Float32Array;
   type: AnnotationType.SPHERE;
 }
 
-export type Annotation = Line|Point|AxisAlignedBoundingBox|Ellipsoid|Sphere;
+export interface Cone extends AnnotationBase {
+  base: Float32Array;
+  baseRadius: number;
+  axis: Float32Array;
+  axisRadius: number;
+  type: AnnotationType.CONE;
+}
+
+export type Annotation = Line|Point|AxisAlignedBoundingBox|Ellipsoid|Sphere|Cone;
 
 export interface AnnotationTypeHandler<T extends Annotation = Annotation> {
   icon: string;
@@ -776,6 +780,57 @@ export const annotationTypeHandlers: Record<AnnotationType, AnnotationTypeHandle
             },
     visitGeometry(annotation: Sphere, callback) {
       callback(annotation.center, false);
+    },
+  },
+  [AnnotationType.CONE]: {
+    icon: '△',
+    description: 'Cone',
+    toJSON: (annotation: Cone) => {
+      return {
+        base: Array.from(annotation.base),
+        baseRadius: annotation.baseRadius,
+        axis: Array.from(annotation.axis),
+        axisRadius: annotation.axisRadius
+      };
+    },
+    restoreState: (annotation: Cone, obj: any, rank: number) => {
+      annotation.base = verifyObjectProperty(
+          obj, 'base', x => parseFixedLengthArray(new Float32Array(rank), x, verifyFiniteFloat));
+      annotation.baseRadius = verifyObjectProperty(
+          obj, "baseRadius", verifyFiniteNonNegativeFloat
+      );
+      annotation.axis= verifyObjectProperty(
+          obj, 'axis',
+          x => parseFixedLengthArray(new Float32Array(rank), x, verifyFiniteFloat));
+      annotation.axisRadius = verifyObjectProperty(
+          obj, "axisRadius", verifyFiniteNonNegativeFloat
+      );
+    },
+    serializedBytes: rank => 2 * 4 * (rank + 1),
+    serialize(
+        buffer: DataView, offset: number, isLittleEndian: boolean, rank: number,
+        annotation: Cone) {
+      offset = serializeFloatVector(buffer, offset, isLittleEndian, rank, annotation.base);
+      buffer.setFloat32(offset, annotation.baseRadius);
+      offset = serializeFloatVector(buffer, offset + 4, isLittleEndian, rank, annotation.axis);
+      buffer.setFloat32(offset, annotation.axisRadius);
+    },
+    deserialize:
+        (buffer: DataView, offset: number, isLittleEndian: boolean, rank: number, id: string):
+            Cone=> {
+              const base = new Float32Array(rank);
+              const axis = new Float32Array(rank);
+              offset = deserializeFloatVector(buffer, offset, isLittleEndian, rank, base);
+              const baseRadius = buffer.getFloat32(offset, isLittleEndian);
+              offset = deserializeFloatVector(buffer, offset + 4, isLittleEndian, rank, axis);
+              const axisRadius = buffer.getFloat32(offset, isLittleEndian);
+              return {type: AnnotationType.CONE, base, baseRadius, axis, axisRadius, id, properties: []};
+            },
+    visitGeometry(annotation: Cone, callback) {
+      annotation.baseRadius = 1.0;
+      annotation.axisRadius = 2.0;
+      callback(annotation.base, false);
+      callback(annotation.axis, false);
     },
   },
 };
@@ -1065,6 +1120,10 @@ export class LocalAnnotationSource extends AnnotationSource {
           annotation.center = mapVector(annotation.center);
           annotation.radii = mapVector(annotation.radii);
           break;
+        case AnnotationType.CONE: 
+          annotation.base = mapVector(annotation.base);
+          annotation.axis = mapVector(annotation.axis);
+          break;
       }
     }
     if (this.rank_ !== sourceRank) {
@@ -1146,7 +1205,7 @@ function serializeAnnotations(
 }
 
 export class AnnotationSerializer {
-  annotations: [Point[], Line[], AxisAlignedBoundingBox[], Ellipsoid[], Sphere[]] = [[], [], [], [], []];
+  annotations: [Point[], Line[], AxisAlignedBoundingBox[], Ellipsoid[], Sphere[], Cone[]] = [[], [], [], [], [], []];
   constructor(public propertySerializers: AnnotationPropertySerializer[]) {}
   add(annotation: Annotation) {
     (<Annotation[]>this.annotations[annotation.type]).push(annotation);
