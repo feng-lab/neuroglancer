@@ -1122,13 +1122,12 @@ class PlaceConeTool extends TwoStepAnnotationTool {
   getInitialAnnotation(mouseState: MouseSelectionState, annotationLayer: AnnotationLayerState):
       Annotation {
     const point = getMousePositionInAnnotationCoordinates(mouseState, annotationLayer);
-
     return <Cone>{
       type: AnnotationType.CONE,
       id: '',
       description: '',
       base: point,
-      baseRadius: 1.0,
+      baseRadius: 2.0,
       axisRadius: 2.0,
       axis: point,
       properties: annotationLayer.source.properties.map(x => x.default),
@@ -1143,7 +1142,7 @@ class PlaceConeTool extends TwoStepAnnotationTool {
     const base = oldAnnotation.base;
     const rank = base.length;
     for (let i = 0; i < rank; ++i) {
-      axis[i] = Math.abs(axis[i] - base[i]);
+      axis[i] = axis[i] - base[i];
     }
     return <Cone>{
       ...oldAnnotation,

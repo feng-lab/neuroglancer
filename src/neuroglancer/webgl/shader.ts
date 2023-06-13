@@ -497,6 +497,7 @@ ${code}
 
   build() {
     let vertexSource = `#version 300 es
+#define LIGHT_COUNT 5
 precision highp float;
 precision highp int;
 ${this.uniformsCode}
@@ -507,7 +508,9 @@ void main() {
 ${this.vertexMain}
 }
 `;
+
     let fragmentSource = `#version 300 es
+#define LIGHT_COUNT 5
 ${this.fragmentExtensions}
 precision highp float;
 precision highp int;

@@ -23,7 +23,8 @@ import {AnnotationRenderContext, AnnotationRenderHelper, AnnotationShaderGetter,
 import {ShaderBuilder, ShaderProgram} from 'neuroglancer/webgl/shader';
 import {defineVectorArrayVertexShaderInput} from 'neuroglancer/webgl/shader_lib';
 import { AtlasSphereRenderHelper } from '../webgl/atlasSpheres';
-import { mat4 } from '../util/geom';
+import { vec3 } from '../util/geom';
+import { defineLightingShader, setLightingShader } from '../webgl/lighting';
 
 class RenderHelper extends AnnotationRenderHelper {
   private sphereRenderHelper = this.registerDisposer(new AtlasSphereRenderHelper(this.gl));
@@ -44,47 +45,42 @@ void setSphereColor(vec4 color) {
 }
 `);
     builder.addVertexMain(`
-ng_sphereRadius = 0.3;
+ng_sphereRadius = 0.001 + uRadiusCoefficient;
 float modelPosition[${rank}] = getVertexPosition0();
 ${this.invokeUserMain}
 ${this.invokeColorCode}
-emitSphere(uProjection, uView, uModel, ng_sphereRadius, modelPosition);
+emitSphere(uProjection, uView, uModel, ng_sphereRadius, modelPosition, uBoxCorrection);
 ${this.setPartIndex(builder)};
 `);
   }
 
-  private defineFragment(builder: ShaderBuilder, rank: number) {
-    const frag3d = `
-    float dist = b - sqrt(position);
-    vec3 ipoint = dist * rayDirection + rayOrigin;
-    vec2 clipZW = ipoint.z * uProjection[2].zw + uProjection[3].zw;
-    
-    float depth = 0.5 + 0.5 * clipZW.x / clipZW.y;
-    
-    if (depth <= 0.0)
-      discard;
-    if (depth >= 1.0)
-      discard;
-    
-    vec3 normalDirection = normalize(ipoint - vSphereCenter);
-    out_color = apply_lighting_and_fog(vec4(0.5, 0.5, 0.5, 0.5), vMaterialShiniess, vec4(0.1, 0.1, 0.1, 1.0), vMaterialSpecular, normalDirection, ipoint, vec4(vColor.xyz, 1.0), 1.0);
-    `;
-    const frag2d = `
-      out_color = vec4(vColor.rgb, 1.0);
-    `;
+  private defineFragment(builder: ShaderBuilder) {
     builder.setFragmentMain(`
-      vec3 rayOrigin = vPoint;
-      vec3 rayDirection = normalize(vPoint);
+vec3 rayOrigin = vPoint;
+vec3 rayDirection = normalize(vPoint);
     
-      vec3 sphereVector = vSphereCenter - rayOrigin;
-      float b = dot(sphereVector, rayDirection);
+vec3 sphereVector = vSphereCenter - rayOrigin;
+float b = dot(sphereVector, rayDirection);
     
-      float position = b * b + vRadius2 - dot(sphereVector, sphereVector);
+float position = b * b + vRadius2 - dot(sphereVector, sphereVector);
     
-      if (position < 0.0)
-        discard;
-      ${rank === 3 ? frag3d : frag2d}
-      emit(out_color, vPickID);
+if (position < 0.0)
+  discard;
+float dist = b - sqrt(position);
+vec3 ipoint = dist * rayDirection + rayOrigin;
+vec2 clipZW = ipoint.z * uProjection[2].zw + uProjection[3].zw;
+    
+float depth = 0.5 + 0.5 * clipZW.x / clipZW.y;
+    
+if (depth <= 0.0)
+  discard;
+if (depth >= 1.0)
+  discard;
+    
+vec3 normalDirection = normalize(ipoint - vSphereCenter);
+//out_color = apply_lighting_and_fog(vec4(0.5, 0.5, 0.5, 0.5), vMaterialShiniess, vec4(0.1, 0.1, 0.1, 1.0), vMaterialSpecular, normalDirection, ipoint, vec4(vColor.xyz, 1.0), 1.0);
+out_color = apply_lighting_and_fog(vec4(0.2, 0.2, 0.2, 1.0), 100.0, vec4(0.1, 0.1, 0.1, 1.0), vec4(1.0, 1.0, 1.0, 1.0), normalDirection, ipoint, vColor, 1.0);
+emit(out_color, vPickID);
     `)
     
 
@@ -100,12 +96,17 @@ ${this.setPartIndex(builder)};
 
   private makeShaderGetter = (extraDim: number) => 
       this.getDependentShader(`annotation/sphere:${extraDim}d`, (builder: ShaderBuilder) => {
+        //builder.addFragmentCode(`
+        //${gsls_LIGHTING}
+        //`);
+        defineLightingShader(builder);
         this.sphereRenderHelper.defineShader(builder);
         builder.addUniform('highp mat4', 'uProjection');
         builder.addUniform('highp mat4', 'uView');
         builder.addUniform('highp mat4', 'uModel');
+        builder.addUniform('highp float', 'uRadiusCoefficient');
         this.defineShader(builder)
-        this.defineFragment(builder, extraDim);
+        this.defineFragment(builder);
       });
 
   enable(
@@ -125,35 +126,34 @@ ${this.setPartIndex(builder)};
   draw(context: AnnotationRenderContext) {
     const {numChunkDisplayDims} = context.chunkDisplayTransform;
     const shaderGetter = this.makeShaderGetter(numChunkDisplayDims);
-    //const uProjection = new Float32Array([
-    //  1.81066, 0.0, 0.0, 0.0,
-    //  0.0, 2.41421, 0.0, 0.0,
-    //  0.0, 0.0, -1.0202, -1.0,
-    //  0.0, 0.0, -2.0202, 0.0
-    //])
 
-    //const uModel = new Float32Array(16).fill(1);
-    const uModel = mat4.create();
-     this.enable(shaderGetter, context, shader => {
-       const { gl } = shader;
-       console.log('view Matrix', context.viewMatrix);
-       gl.uniformMatrix4fv(
-         shader.uniform('uProjection'), 
-         /*transpose=*/ false, 
-         //uProjection);
-         context.projectionMatrix);
-        console.log('projectionMatrix', context.projectionMatrix);   
-       gl.uniformMatrix4fv(
-         shader.uniform('uView'), 
-         /*transpose=*/ false, 
-         //uView);
-         context.viewMatrix);
-       gl.uniformMatrix4fv(
-         shader.uniform('uModel'), 
-         /*transpose=*/ false, 
-         uModel);
-       this.sphereRenderHelper.draw(shader, context.count);
-     })
+    this.enable(shaderGetter, context, shader => {
+      const { gl } = shader;
+      const { viewMatrix, projectionMat, displayDimensionRenderInfo } = context.projectionParameters;
+      const rightVector = vec3.fromValues(viewMatrix[0], viewMatrix[1], viewMatrix[2]);
+      const upVector = vec3.fromValues(viewMatrix[4], viewMatrix[5], viewMatrix[6]);
+      const rightLength = vec3.length(rightVector);
+      const upLength = vec3.length(upVector);
+      const invRightLength = 1/rightLength;
+      const invUpLength = 1/upLength;
+
+      const radiusCoefficient = Math.floor(
+        Math.log10(displayDimensionRenderInfo.canonicalVoxelPhysicalSize) - (-9)) * 1e-3;
+
+      gl.uniformMatrix4fv(shader.uniform('uProjection'), /*transpose=*/ false, projectionMat);
+      gl.uniformMatrix4fv(shader.uniform('uView'), /*transpose=*/ false, viewMatrix);
+      gl.uniformMatrix4fv(shader.uniform('uModel'), /*transpose=*/ false, context.renderSubspaceModelMatrix);
+      gl.uniform1f(shader.uniform("uRadiusCoefficient"), radiusCoefficient);
+      gl.uniform1f(
+        shader.uniform('uBoxCorrection'), 
+        1.2 * invRightLength * invUpLength
+        * context.renderSubspaceInvModelMatrix[0]  //modelx scale
+        * context.renderSubspaceInvModelMatrix[5]  //modely scale
+        * context.renderSubspaceInvModelMatrix[10] //modelz scale
+      );
+      setLightingShader(shader, true);
+      this.sphereRenderHelper.draw(shader, context.count);
+    })
   }
 }
 

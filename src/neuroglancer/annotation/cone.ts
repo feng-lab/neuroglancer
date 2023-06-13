@@ -55,10 +55,10 @@ void setConeColor(vec4 color) {
   vBaseColor = color;
   vTopColor = color;
 }
-void setBaseRadius(float baseRadius) {
+void setConeBaseRadius(float baseRadius) {
   vBaseRadius = baseRadius;
 }
-void setTopRadius(float topRadius) {
+void setConeTopRadius(float topRadius) {
   vTopRadius = topRadius;
 }
 `);
@@ -149,7 +149,8 @@ void setTopRadius(float topRadius) {
       mat3.invert(tempMat3, tempMat3);
       mat3.transpose(tempMat3, tempMat3);
       gl.uniformMatrix3fv(shader.uniform('uNormalMatrix'), false, tempMat3);
-      gl.uniform1f(shader.uniform("uOrtho"), 0.0);
+      const ortho = this.targetIsSliceView ? 0.0 : 1.0;
+      gl.uniform1f(shader.uniform("uOrtho"), ortho);
       gl.uniform1f(shader.uniform("uAlpha"), 1.0);
       this.coneRenderHelper.draw(shader, context.count);
     });
@@ -165,8 +166,8 @@ registerAnnotationTypeRenderHandler<Cone>(AnnotationType.CONE, {
 void setConeBaseColor(vec4 color) {}
 void setConeTopColor(vec4 color) {}
 void setConeColor(vec4 color) {}
-void setBaseRadius(float baseRadius) {}
-void setTopRadius(float topRadius) {}
+void setConeBaseRadius(float baseRadius) {}
+void setConeTopRadius(float topRadius) {}
 `);
   },
   pickIdsPerInstance: PICK_IDS_PER_INSTANCE,

@@ -1,5 +1,4 @@
 import { ShaderProgram } from "./shader";
-import { vec2 } from "../util/geom";
 import { ShaderBuilder } from "./shader";
 import { getLightSourceArray } from "./lightSource";
 
@@ -40,7 +39,6 @@ vec4 apply_lighting_and_fog(const in vec4 sceneAmbient,
 `
 
 export const gsls_LIGHTING = `
-#define LIGHT_COUNT 5;
 
 #if defined(USE_LINEAR_FOG) || defined(USE_EXPONENTIAL_FOG) || defined(USE_SQUARED_EXPONENTIAL_FOG)
 uniform vec3 uFogColorTop;
@@ -56,6 +54,9 @@ uniform float uFogDensityLog2e;
 #if defined(USE_SQUARED_EXPONENTIAL_FOG)
 uniform float uFogDensityDensityLog2e;
 #endif
+`
+
+export const gsls_MULTILIGHTING_computeColorFromLight = `
 
 vec4 computeColorFromLight(const in vec3 normalDirection, const in int lightIdx, const in vec3 position,
                            const in float materialShininess, const in vec4 materialAmbient, const in vec4 materialSpecular,
@@ -99,8 +100,9 @@ vec4 computeColorFromLight(const in vec3 normalDirection, const in int lightIdx,
   }
   return retVal;
 }
+`
 
-
+export const gsls_MULTILIGHTING_applyLightingAndFog = `
 vec4 apply_lighting_and_fog(const in vec4 sceneAmbient,
                             const in float materialShininess, const in vec4 materialAmbient, const in vec4 materialSpecular,
                             const in vec3 normalDirection, const in vec3 position, const in vec4 color, const in float alpha)
@@ -112,23 +114,6 @@ vec4 apply_lighting_and_fog(const in vec4 sceneAmbient,
       finalColor += computeColorFromLight(normalDirection, index, position,
                                           materialShininess, materialAmbient, materialSpecular, color);
     }
-
-#if defined(USE_LINEAR_FOG)
-    float fog = clamp((uFogEnd + position.z) * uFogScale, 0.0, 1.0);
-    vec3 fogColor = mix(uFogColorbottom, uFogColorTop, gl_FragCoord.y * uScreenDimRCP.y);
-    finalColor.rgb = mix(fogColor, finalColor.rgb, fog);
-#endif
-#if defined(USE_EXPONENTIAL_FOG)
-    float fog = clamp(exp2(position.z * uFogDensityLog2e), 0.0, 1.0);
-    vec3 fogColor = mix(uFogColorBottom, uFogColorTop, gl_FragCoord.y * uScreenDimRCP.y);
-    finalColor.rgb = mix(fogColor, finalColor.rgb, fog);
-#endif
-#if defined(USE_SQUARED_EXPONENTIAL_FOG)
-    float fog = clamp(exp2(-position.z * position.z * uFogDensityDensityLog2e), 0.0, 1.0);
-    vec3 fogColor = mix(uFogColorBottom, uFogColorTop, gl_FragCoord.y * uScreenDimRCP.y);
-    finalColor.rgb = mix(fogColor, finalColor.rgb, fog);
-#endif
-
     return vec4(finalColor.rgb * color.a * alpha, color.a * alpha);
   } else {
     return color;
@@ -138,9 +123,8 @@ vec4 apply_lighting_and_fog(const in vec4 sceneAmbient,
 
 export function defineLightingShader(builder: ShaderBuilder) {
   builder.addUniform("bool", "uLightingEnabled");
-  builder.addUniform("vec2", "uScreenDimRCP");
   builder.addUniform("vec4", "uLightsPosition[LIGHT_COUNT]");
-  builder.addUniform("vec4", "ulightsAmbient[LIGHT_COUNT]");
+  builder.addUniform("vec4", "uLightsAmbient[LIGHT_COUNT]");
   builder.addUniform("vec4", "uLightsDiffuse[LIGHT_COUNT]");
   builder.addUniform("vec4", "uLightsSpecular[LIGHT_COUNT]");
   builder.addUniform("vec3", "uLightsAttenuation[LIGHT_COUNT]");
@@ -148,10 +132,11 @@ export function defineLightingShader(builder: ShaderBuilder) {
   builder.addUniform("float", "uLightsSpotExponent[LIGHT_COUNT]");
   builder.addUniform("vec3", "uLightsSpotDirection[LIGHT_COUNT]");
 
-  builder.addFragmentCode(gsls_LIGHTING);
+  builder.addFragmentCode(gsls_MULTILIGHTING_computeColorFromLight);
+  builder.addFragmentCode(gsls_MULTILIGHTING_applyLightingAndFog);
 }
 
-export function setLightingShader(shader: ShaderProgram, lightingEnabled: Boolean, screenDimRCP: vec2) {
+export function setLightingShader(shader: ShaderProgram, lightingEnabled: Boolean) {
   const { gl } = shader;
   const {
     lightPositionArray,
@@ -166,9 +151,8 @@ export function setLightingShader(shader: ShaderProgram, lightingEnabled: Boolea
   
 
   gl.uniform1i(shader.uniform("uLightingEnabled"), Number(lightingEnabled));
-  gl.uniform2fv(shader.uniform("screenDimRCP"), screenDimRCP);
   gl.uniform4fv(shader.uniform("uLightsPosition[LIGHT_COUNT]"), lightPositionArray);
-  gl.uniform4fv(shader.uniform("ulightsAmbient[LIGHT_COUNT]"), lightAmbientArray);
+  gl.uniform4fv(shader.uniform("uLightsAmbient[LIGHT_COUNT]"), lightAmbientArray);
   gl.uniform4fv(shader.uniform("uLightsDiffuse[LIGHT_COUNT]"), lightDiffuseArray);
   gl.uniform4fv(shader.uniform("uLightsSpecular[LIGHT_COUNT]"), lightSpecularArray);
   gl.uniform4fv(shader.uniform("uLightsAttenuation[LIGHT_COUNT]"), lightAttenuationArray);
