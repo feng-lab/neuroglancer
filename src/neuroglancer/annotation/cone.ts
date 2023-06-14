@@ -149,7 +149,7 @@ void setConeTopRadius(float topRadius) {
       mat3.invert(tempMat3, tempMat3);
       mat3.transpose(tempMat3, tempMat3);
       gl.uniformMatrix3fv(shader.uniform('uNormalMatrix'), false, tempMat3);
-      const ortho = this.targetIsSliceView ? 0.0 : 1.0;
+      const ortho = this.targetIsSliceView ? 1.0 : 0.0;
       gl.uniform1f(shader.uniform("uOrtho"), ortho);
       gl.uniform1f(shader.uniform("uAlpha"), 1.0);
       this.coneRenderHelper.draw(shader, context.count);

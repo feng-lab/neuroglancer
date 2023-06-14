@@ -56,31 +56,33 @@ ${this.setPartIndex(builder)};
 
   private defineFragment(builder: ShaderBuilder) {
     builder.setFragmentMain(`
-vec3 rayOrigin = vPoint;
-vec3 rayDirection = normalize(vPoint);
+highp vec3 rayOrigin = vPoint;
+//highp vec3 rayDirection = normalize(vPoint);
+highp vec3 rayDirection = mix(normalize(vPoint), vec3(0.0, 0.0, -1.0), uOrtho);
     
-vec3 sphereVector = vSphereCenter - rayOrigin;
-float b = dot(sphereVector, rayDirection);
+highp vec3 sphereVector = vSphereCenter - rayOrigin;
+highp float b = dot(sphereVector, rayDirection);
     
-float position = b * b + vRadius2 - dot(sphereVector, sphereVector);
+highp float position = b * b + vRadius2 - dot(sphereVector, sphereVector);
     
 if (position < 0.0)
   discard;
-float dist = b - sqrt(position);
-vec3 ipoint = dist * rayDirection + rayOrigin;
-vec2 clipZW = ipoint.z * uProjection[2].zw + uProjection[3].zw;
+highp float dist = b - sqrt(position);
+highp vec3 ipoint = dist * rayDirection + rayOrigin;
+highp vec2 clipZW = ipoint.z * uProjection[2].zw + uProjection[3].zw;
     
-float depth = 0.5 + 0.5 * clipZW.x / clipZW.y;
+highp float depth = 0.5 + 0.5 * clipZW.x / clipZW.y;
     
 if (depth <= 0.0)
   discard;
 if (depth >= 1.0)
   discard;
     
-vec3 normalDirection = normalize(ipoint - vSphereCenter);
+highp vec3 normalDirection = normalize(ipoint - vSphereCenter);
 //out_color = apply_lighting_and_fog(vec4(0.5, 0.5, 0.5, 0.5), vMaterialShiniess, vec4(0.1, 0.1, 0.1, 1.0), vMaterialSpecular, normalDirection, ipoint, vec4(vColor.xyz, 1.0), 1.0);
-out_color = apply_lighting_and_fog(vec4(0.2, 0.2, 0.2, 1.0), 100.0, vec4(0.1, 0.1, 0.1, 1.0), vec4(1.0, 1.0, 1.0, 1.0), normalDirection, ipoint, vColor, 1.0);
-emit(out_color, vPickID);
+//out_color = apply_lighting_and_fog(vec4(0.2, 0.2, 0.2, 1.0), 100.0, vec4(0.1, 0.1, 0.1, 1.0), vec4(1.0, 1.0, 1.0, 1.0), normalDirection, ipoint, vColor, 1.0);
+vec4 color = apply_lighting_and_fog(vec4(0.2, 0.2, 0.2, 1.0), 100.0, vec4(0.1, 0.1, 0.1, 1.0), vec4(1.0, 1.0, 1.0, 1.0), normalDirection, ipoint, vColor, 1.0);
+emit(color, vPickID);
     `)
     
 
@@ -151,6 +153,8 @@ emit(out_color, vPickID);
         * context.renderSubspaceInvModelMatrix[5]  //modely scale
         * context.renderSubspaceInvModelMatrix[10] //modelz scale
       );
+      const ortho = this.targetIsSliceView ? 1.0 : 0.0;
+      gl.uniform1f(shader.uniform("uOrtho"), ortho);
       setLightingShader(shader, true);
       this.sphereRenderHelper.draw(shader, context.count);
     })

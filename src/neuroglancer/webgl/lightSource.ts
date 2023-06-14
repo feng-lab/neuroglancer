@@ -63,13 +63,13 @@ const BackLight2: LightSource = {
   lightSpotDirection: vec3.fromValues(0.9397, 0., 0.3420)
 }
 
-export const LightSources = {
+export const LightSources = [
   KeyLight,
   HeadLight,
   FillLight,
   BackLight1,
   BackLight2
-}
+]
 
 export function getLightSourceArray() {
   return {

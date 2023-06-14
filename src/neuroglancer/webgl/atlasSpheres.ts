@@ -66,6 +66,7 @@ export class AtlasSphereRenderHelper extends RefCounted {
     builder.addVarying('highp float', 'vMaterialShiniess');
     builder.addVarying('highp vec4', 'vMaterialSpecular');
     builder.addUniform('highp float', 'uBoxCorrection');
+    builder.addUniform('highp float', 'uOrtho');
 
 
     // projectionMatrix = cameraMatrix * modelViewMat
@@ -78,27 +79,27 @@ export class AtlasSphereRenderHelper extends RefCounted {
     builder.addVertexCode(`
 void emitSphere(mat4 projectionMatrix, mat4 viewMatrix, mat4 model, float radius, float modelPosition[3], float boxCorrection) {
   vRadius2 = radius * radius;
-  vec2 flags = mod(floor(vec2(aFlag/16.0, aFlag)), 16.0);
-  vec4 attr_specular_shininess = vec4(1.0, 1.0, 1.0, 1.0);
+  highp vec2 flags = mod(floor(vec2(aFlag/16.0, aFlag)), 16.0);
+  highp vec4 attr_specular_shininess = vec4(1.0, 1.0, 1.0, 1.0);
 
-  float rightFlag = flags.x - 1.0;
-  float upFlag = flags.y - 1.0;
+  highp float rightFlag = flags.x - 1.0;
+  highp float upFlag = flags.y - 1.0;
 
   vMaterialSpecular = vec4(attr_specular_shininess.xyz, 1.);
 	vMaterialShiniess = attr_specular_shininess.w;
 
-  vec3 rightVector = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
-  vec3 upVector = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
-  vec3 cornerDirection = (boxCorrection*upFlag) * upVector + (boxCorrection*rightFlag) * rightVector;
-  vec4 centerVertex = model * vec4(aVertexPosition0.xyz, 1.0);
+  highp vec3 rightVector = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+  highp vec3 upVector = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+  highp vec3 cornerDirection = (boxCorrection*upFlag) * upVector + (boxCorrection*rightFlag) * rightVector;
+  highp vec4 centerVertex = model * vec4(aVertexPosition0.xyz, 1.0);
   //vec4 centerVertex = vec4(projectModelVectorToSubspace(modelPosition), 1.0);
   //vec4 centerVertex = uModelViewProjection * vec4(aVertexPosition0.xyz, 1.0);
-  vec4 vertex = vec4(centerVertex.xyz + radius * cornerDirection, 1.0);
+  highp vec4 vertex = vec4(centerVertex.xyz + radius * cornerDirection, 1.0);
 
-  vec4 eyeSpacePos = viewMatrix * vertex;
+  highp vec4 eyeSpacePos = viewMatrix * vertex;
   vPoint = eyeSpacePos.xyz;
 
-  vec4 tmppos = viewMatrix * vec4(centerVertex.xyz, 1.0);
+  highp vec4 tmppos = viewMatrix * vec4(centerVertex.xyz, 1.0);
 	vSphereCenter = tmppos.xyz;
 
   gl_Position =  projectionMatrix * viewMatrix * vertex;
