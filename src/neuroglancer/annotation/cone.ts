@@ -25,6 +25,7 @@ import {ShaderBuilder, ShaderProgram} from 'neuroglancer/webgl/shader';
 import {defineVectorArrayVertexShaderInput} from 'neuroglancer/webgl/shader_lib';
 import { ConeRenderHelper } from '../webgl/cone';
 import { mat3FromMat4 } from 'neuroglancer/util/geom';
+import { defineLightingShader, setLightingShader } from '../webgl/lighting';
 //import { scaleMat3Output } from 'neuroglancer/util/geom';
 
 const FULL_OBJECT_PICK_OFFSET = 0;
@@ -88,6 +89,7 @@ void setConeTopRadius(float topRadius) {
 
   private shaderGetter =
       this.getDependentShader('annotation/cone', (builder: ShaderBuilder) => {
+        defineLightingShader(builder);
         this.defineShader(builder);
         builder.addVertexCode(`
           void setPartIndex() {
@@ -152,6 +154,8 @@ void setConeTopRadius(float topRadius) {
       const ortho = this.targetIsSliceView ? 1.0 : 0.0;
       gl.uniform1f(shader.uniform("uOrtho"), ortho);
       gl.uniform1f(shader.uniform("uAlpha"), 1.0);
+      gl.uniformMatrix4fv(shader.uniform('uModelMatrix'), /*transpose=*/ false, context.renderSubspaceModelMatrix);
+      setLightingShader(shader, true);
       this.coneRenderHelper.draw(shader, context.count);
     });
   }
