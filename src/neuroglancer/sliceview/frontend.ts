@@ -552,9 +552,16 @@ gl_Position = uProjectionMatrix * aVertexPosition;
 
     let aVertexPosition = shader.attribute('aVertexPosition');
     this.copyVertexPositionsBuffer.bindToVertexAttrib(aVertexPosition, /*components=*/ 2);
-
-    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-
+    if(backgroundColor[3] < 1) {
+      gl.depthMask(false);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+      gl.disable(gl.BLEND);
+      gl.depthMask(true);
+    } else {
+      gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+    }
     gl.disableVertexAttribArray(aVertexPosition);
     gl.bindTexture(gl.TEXTURE_2D, null);
   }

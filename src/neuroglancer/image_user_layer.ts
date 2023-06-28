@@ -66,7 +66,7 @@ export interface ImageLayerSelectionState extends UserLayerSelectionState {
 
 const Base = UserLayerWithAnnotationsMixin(UserLayer);
 export class ImageUserLayer extends Base {
-  opacity = trackableAlphaValue(0.5);
+  opacity = trackableAlphaValue(1.0);
   blendMode = trackableBlendModeValue();
   fragmentMain = getTrackableFragmentMain();
   shaderError = makeWatchableShaderError();

@@ -23,7 +23,6 @@ import { Buffer, getMemoizedBuffer } from 'neuroglancer/webgl/buffer';
 import { GL } from 'neuroglancer/webgl/context';
 import { ShaderBuilder, ShaderProgram } from 'neuroglancer/webgl/shader';
 import { glsl_emitCone, glsl_emitConeFrag } from './coneSource';
-import { glsl_applyLightingAndFog, glsl_computeColorFromLight } from './lighting';
 
 export function getConeVertexArray(count: number) {
   const totalNum = count * 4;
@@ -79,6 +78,7 @@ export class ConeRenderHelper extends RefCounted {
     builder.addUniform("highp mat4", "uProjectionViewMatrix");
     builder.addUniform("highp mat4", "uProjectionMatrixInverse");
     builder.addUniform("highp mat3", "uNormalMatrix");
+    builder.addUniform("highp mat4", "uModelMatrix");
 
     //fragment
     builder.addUniform("highp float", "uOrtho");
@@ -112,9 +112,6 @@ export class ConeRenderHelper extends RefCounted {
     #define vTopRadius vCombo1.y
     #define vHeight vCombo1.z
     #define vInvSqrHeight vCombo1.w
-
-    ${glsl_computeColorFromLight}
-    ${glsl_applyLightingAndFog}
     ${glsl_emitConeFrag}
 
     `)

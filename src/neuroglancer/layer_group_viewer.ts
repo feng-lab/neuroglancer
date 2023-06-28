@@ -27,7 +27,7 @@ import {LayerListSpecification, LayerSubsetSpecification, MouseSelectionState, S
 import {DisplayPose, LinkedDepthRange, LinkedDisplayDimensions, LinkedOrientationState, LinkedPosition, LinkedRelativeDisplayScales, linkedStateLegacyJsonView, LinkedZoomState, NavigationState, TrackableCrossSectionZoom, TrackableNavigationLink, TrackableProjectionZoom, WatchableDisplayDimensionRenderInfo} from 'neuroglancer/navigation_state';
 import {RenderLayerRole} from 'neuroglancer/renderlayer';
 import {TrackableBoolean} from 'neuroglancer/trackable_boolean';
-import {WatchableSet, WatchableValueInterface} from 'neuroglancer/trackable_value';
+import {TrackableValue, WatchableSet, WatchableValueInterface} from 'neuroglancer/trackable_value';
 import {ContextMenu} from 'neuroglancer/ui/context_menu';
 import {popDragStatus, pushDragStatus} from 'neuroglancer/ui/drag_and_drop';
 import {LayerBar} from 'neuroglancer/ui/layer_bar';
@@ -61,6 +61,7 @@ export interface LayerGroupViewerState {
   selectedLayer: SelectedLayerState;
   visibleLayerRoles: WatchableSet<RenderLayerRole>;
   crossSectionBackgroundColor: TrackableRGB;
+  crossSectionBackgroundAlpha: TrackableValue<number>;
   perspectiveViewBackgroundColor: TrackableRGB;
 }
 
@@ -274,6 +275,9 @@ export class LayerGroupViewer extends RefCounted {
   }
   get crossSectionBackgroundColor() {
     return this.viewerState.crossSectionBackgroundColor;
+  }
+  get crossSectionBackgroundAlpha() {
+    return this.viewerState.crossSectionBackgroundAlpha;
   }
   get perspectiveViewBackgroundColor() {
     return this.viewerState.perspectiveViewBackgroundColor;

@@ -49,6 +49,7 @@ export interface PerspectiveViewerState extends RenderedDataViewerState {
   scaleBarOptions: TrackableValue<ScaleBarOptions>;
   showSliceViewsCheckbox?: boolean;
   crossSectionBackgroundColor: TrackableRGB;
+  crossSectionBackgroundAlpha: TrackableValue<number>;
   perspectiveViewBackgroundColor: TrackableRGB;
   rpc: RPC;
 }
@@ -283,6 +284,8 @@ export class PerspectivePanel extends RenderedDataPanel {
     this.registerDisposer(viewer.showAxisLines.changed.add(() => this.scheduleRedraw()));
     this.registerDisposer(
         viewer.crossSectionBackgroundColor.changed.add(() => this.scheduleRedraw()));
+    this.registerDisposer(
+        viewer.crossSectionBackgroundAlpha.changed.add(() => this.scheduleRedraw()));
     this.registerDisposer(
         viewer.perspectiveViewBackgroundColor.changed.add(() => this.scheduleRedraw()));
     this.registerDisposer(viewer.wireFrame.changed.add(() => this.scheduleRedraw()));
@@ -728,10 +731,11 @@ export class PerspectivePanel extends RenderedDataPanel {
       mat4.multiply(mat, viewProjectionMat, mat);
       const backgroundColor = tempVec4;
       const crossSectionBackgroundColor = this.viewer.crossSectionBackgroundColor.value;
+      const crossSectionBackgroundAlpha = this.viewer.crossSectionBackgroundAlpha.value;
       backgroundColor[0] = crossSectionBackgroundColor[0];
       backgroundColor[1] = crossSectionBackgroundColor[1];
       backgroundColor[2] = crossSectionBackgroundColor[2];
-      backgroundColor[3] = 1;
+      backgroundColor[3] = crossSectionBackgroundAlpha;
       sliceViewRenderHelper.draw(
           sliceView.offscreenFramebuffer.colorBuffers[0].texture, mat,
           vec4.fromValues(factor, factor, factor, 1), tempVec4, 0, 0, 1, 1);

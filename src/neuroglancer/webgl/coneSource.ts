@@ -4,8 +4,10 @@ export const glsl_emitCone = `
     float rightFlag = flags.x;
     float upFlag = flags.y;
 
-    vec3 scaledOrigin = attr_origin.xyz;
-    vec3 scaledTop = attr_origin.xyz + attr_axis.xyz;
+    //vec3 scaledOrigin = attr_origin.xyz;
+    //vec3 scaledTop = attr_origin.xyz + attr_axis.xyz;
+    vec3 scaledOrigin = (uModelMatrix * vec4(attr_origin.xyz, 1.0)).xyz;
+    vec3 scaledTop = (uModelMatrix * vec4(attr_origin.xyz + attr_axis.xyz, 1.0)).xyz;
     vec3 scaledAxis = scaledTop - scaledOrigin;
     vHeight = length(scaledAxis);
     vInvSqrHeight = vHeight * vHeight;

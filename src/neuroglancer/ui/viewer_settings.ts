@@ -26,6 +26,7 @@ import {Viewer} from 'neuroglancer/viewer';
 import {ColorWidget} from 'neuroglancer/widget/color';
 import {NumberInputWidget} from 'neuroglancer/widget/number_input_widget';
 import {TextInputWidget} from 'neuroglancer/widget/text_input';
+import { RangeWidget } from '../widget/range';
 
 const DEFAULT_SETTINGS_PANEL_LOCATION: SidePanelLocation = {
   ...DEFAULT_SIDE_PANEL_LOCATION,
@@ -104,6 +105,14 @@ export class ViewerSettingsPanel extends SidePanel {
     };
 
     addColor('Cross-section background', viewer.crossSectionBackgroundColor);
+    {
+      const labelElement = document.createElement('label');
+      labelElement.textContent = "Cross-section in 3-d alpha";
+      const options = { step: 0.1}
+      const range = this.registerDisposer(new RangeWidget(viewer.crossSectionBackgroundAlpha, options));
+      labelElement.appendChild(range.element);
+      scroll.appendChild(labelElement);
+    }
     addColor('Projection background', viewer.perspectiveViewBackgroundColor);
   }
 }

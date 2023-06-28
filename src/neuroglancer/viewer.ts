@@ -67,6 +67,7 @@ import {makeIcon} from 'neuroglancer/widget/icon';
 import {MousePositionWidget, PositionWidget} from 'neuroglancer/widget/position_widget';
 import {TrackableScaleBarOptions} from 'neuroglancer/widget/scale_bar';
 import {RPC} from 'neuroglancer/worker_rpc';
+import { trackableAlphaValue } from './trackable_alpha';
 
 declare var NEUROGLANCER_OVERRIDE_DEFAULT_VIEWER_OPTIONS: any
 
@@ -202,6 +203,7 @@ class TrackableViewerState extends CompoundTrackable {
         'concurrentDownloads', viewer.dataContext.chunkQueueManager.capacities.download.itemLimit);
     this.add('selectedLayer', viewer.selectedLayer);
     this.add('crossSectionBackgroundColor', viewer.crossSectionBackgroundColor);
+    this.add('crossSectionBackgroundAlpha', viewer.crossSectionBackgroundAlpha);
     this.add('projectionBackgroundColor', viewer.perspectiveViewBackgroundColor);
     this.add('layout', viewer.layout);
     this.add('statistics', viewer.statisticsDisplayState);
@@ -290,6 +292,7 @@ export class Viewer extends RefCounted implements ViewerState {
   visibleLayerRoles = allRenderLayerRoles();
   showDefaultAnnotations = new TrackableBoolean(true, true);
   crossSectionBackgroundColor = new TrackableRGB(vec3.fromValues(0.5, 0.5, 0.5));
+  crossSectionBackgroundAlpha = trackableAlphaValue(1.0);
   perspectiveViewBackgroundColor = new TrackableRGB(vec3.fromValues(0, 0, 0));
   scaleBarOptions = new TrackableScaleBarOptions();
   partialViewport = new TrackableWindowedViewport();
