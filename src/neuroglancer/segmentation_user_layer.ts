@@ -87,6 +87,7 @@ const LINKED_SEGMENTATION_COLOR_GROUP_JSON_KEY = 'linkedSegmentationColorGroup';
 const SEGMENT_DEFAULT_COLOR_JSON_KEY = 'segmentDefaultColor';
 const ANCHOR_SEGMENT_JSON_KEY = 'anchorSegment';
 const DISABLE_RESPONSE_DBLCLICK0_EVENT = 'disableResponseDblclick0Event';
+const REMOVE_OCTANT_KEY = "removeOctant";
 
 export const SKELETON_RENDERING_SHADER_CONTROL_TOOL_ID = 'skeletonShaderControl';
 
@@ -350,6 +351,7 @@ class SegmentationUserLayerDisplayState implements SegmentationDisplayState {
   baseSegmentHighlighting = new TrackableBoolean(false, false);
   useTempSegmentStatedColors2d =
       this.layer.registerDisposer(SharedWatchableValue.make(this.layer.manager.rpc, false));
+  removeOctant = new TrackableBoolean(false, false);
 
   filterBySegmentLabel = this.layer.filterBySegmentLabel;
 
@@ -470,6 +472,7 @@ export class SegmentationUserLayer extends Base {
         this.specificationChanged.dispatch);
     this.displayState.linkedSegmentationGroup.changed.add(
         () => this.updateDataSubsourceActivations());
+    this.displayState.removeOctant.changed.add(this.specificationChanged.dispatch);
     this.tabs.add(
         'rendering', {label: 'Render', order: -100, getter: () => new DisplayOptionsTab(this)});
     this.tabs.add(
@@ -663,6 +666,7 @@ export class SegmentationUserLayer extends Base {
         specification[MESH_SILHOUETTE_RENDERING_JSON_KEY]);
     this.displayState.ignoreNullVisibleSet.restoreState(
         specification[IGNORE_NULL_VISIBLE_SET_JSON_KEY]);
+    this.displayState.removeOctant.restoreState(specification[REMOVE_OCTANT_KEY]);
 
     const {skeletonRenderingOptions} = this.displayState;
     skeletonRenderingOptions.restoreState(specification[SKELETON_RENDERING_JSON_KEY]);
@@ -704,6 +708,7 @@ export class SegmentationUserLayer extends Base {
     x[SKELETON_RENDERING_JSON_KEY] = this.displayState.skeletonRenderingOptions.toJSON();
     x[MESH_RENDER_SCALE_JSON_KEY] = this.displayState.renderScaleTarget.toJSON();
     x[CROSS_SECTION_RENDER_SCALE_JSON_KEY] = this.sliceViewRenderScaleTarget.toJSON();
+    x[REMOVE_OCTANT_KEY] = this.displayState.removeOctant.toJSON();
 
     const {linkedSegmentationGroup, linkedSegmentationColorGroup} = this.displayState;
     x[LINKED_SEGMENTATION_GROUP_JSON_KEY] = linkedSegmentationGroup.toJSON();

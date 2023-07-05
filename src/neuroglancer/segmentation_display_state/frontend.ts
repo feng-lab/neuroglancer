@@ -177,6 +177,8 @@ export interface SegmentationDisplayState {
   segmentationGroupState: WatchableValueInterface<SegmentationGroupState>;
   segmentationColorGroupState: WatchableValueInterface<SegmentationColorGroupState>;
 
+  removeOctant: WatchableValueInterface<boolean>;
+
   selectSegment: (id: Uint64, pin: boolean|'toggle') => void;
   filterBySegmentLabel: (id: Uint64) => void;
   moveToSegment: (id: Uint64) => void;

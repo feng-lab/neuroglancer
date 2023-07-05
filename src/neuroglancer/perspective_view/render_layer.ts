@@ -20,6 +20,7 @@ import {ThreeDimensionalReadyRenderContext, ThreeDimensionalRenderContext, Visib
 import {vec3} from 'neuroglancer/util/geom';
 import {ShaderModule} from 'neuroglancer/webgl/shader';
 import {SharedObject} from 'neuroglancer/worker_rpc';
+import { NavigationState } from 'neuroglancer/navigation_state';
 
 export interface PerspectiveViewReadyRenderContext extends ThreeDimensionalReadyRenderContext {}
 
@@ -44,6 +45,9 @@ export interface PerspectiveViewRenderContext extends PerspectiveViewReadyRender
    * Specifies whether there was a previous pick ID pass.
    */
   alreadyEmittedPickID: boolean;
+  slicesNavigationState: NavigationState;
+  perspectiveNavigationState: NavigationState;
+  crossBackgroundColor: vec3;
 }
 
 export class PerspectiveViewRenderLayer<AttachmentState = unknown> extends

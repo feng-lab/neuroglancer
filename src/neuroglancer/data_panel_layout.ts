@@ -260,6 +260,7 @@ export class FourPanelLayout extends RefCounted {
       ...getCommonPerspectiveViewerState(container),
       showSliceViews: viewer.showPerspectiveSliceViews,
       showSliceViewsCheckbox: true,
+      slicesNavigationState: viewer.navigationState
     };
 
     const sliceViewerState = {
@@ -333,6 +334,7 @@ export class SliceViewPerspectiveTwoPanelLayout extends RefCounted {
       ...getCommonPerspectiveViewerState(container),
       showSliceViews: viewer.showPerspectiveSliceViews,
       showSliceViewsCheckbox: true,
+      //slicesNavigationState: viewer.navigationState
     };
 
     const sliceViewerState = {
@@ -401,6 +403,7 @@ export class SinglePerspectiveLayout extends RefCounted {
     let perspectiveViewerState = {
       ...getCommonPerspectiveViewerState(container),
       showSliceViews: new TrackableBoolean(false, false),
+      //slicesNavigationState: viewer.navigationState
     };
 
 

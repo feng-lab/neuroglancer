@@ -26,7 +26,7 @@ import {forEachVisibleSegment, getObjectKey} from 'neuroglancer/segmentation_dis
 import {forEachVisibleSegmentToDraw, registerRedrawWhenSegmentationDisplayState3DChanged, SegmentationDisplayState3D, SegmentationLayerSharedObject} from 'neuroglancer/segmentation_display_state/frontend';
 import {makeCachedDerivedWatchableValue, WatchableValueInterface} from 'neuroglancer/trackable_value';
 import {Borrowed, RefCounted} from 'neuroglancer/util/disposable';
-import {getFrustrumPlanes, mat3, mat3FromMat4, mat4, scaleMat3Output, vec3, vec4} from 'neuroglancer/util/geom';
+import {getFrustrumPlanes, mat3, mat3FromMat4, mat4, quat, scaleMat3Output, vec3, vec4} from 'neuroglancer/util/geom';
 import * as matrix from 'neuroglancer/util/matrix';
 import {Uint64} from 'neuroglancer/util/uint64';
 import {Buffer} from 'neuroglancer/webgl/buffer';
@@ -34,6 +34,12 @@ import {GL} from 'neuroglancer/webgl/context';
 import {parameterizedEmitterDependentShaderGetter} from 'neuroglancer/webgl/dynamic_shader';
 import {ShaderBuilder, ShaderProgram} from 'neuroglancer/webgl/shader';
 import {registerSharedObjectOwner, RPC} from 'neuroglancer/worker_rpc';
+
+export interface ValuesForClipping {
+	navState: mat4;
+	octant: vec4;
+	backFaceColor: vec4;	
+}
 
 const tempMat4 = mat4.create();
 const tempMat3 = mat3.create();
@@ -56,6 +62,39 @@ function freeGpuMeshData(chunk: FragmentChunk|MultiscaleFragmentChunk) {
   chunk.vertexBuffer.dispose();
   chunk.indexBuffer.dispose();
   chunk.normalBuffer.dispose();
+}
+
+export function getValuesForClipping(renderContext: PerspectiveViewRenderContext, removeOctant: boolean) : ValuesForClipping {
+  const navState = mat4.create();
+  const { slicesNavigationState, perspectiveNavigationState,  crossBackgroundColor } = renderContext;
+  if(!removeOctant || !slicesNavigationState) {
+    return {
+      navState,
+      octant: vec4.fromValues(0.0, 0.0, 0.0, 0.0),
+      backFaceColor: vec4.fromValues(0.5, 0.5, 0.5, 1)
+    }
+  }
+  slicesNavigationState.toMat4(navState);
+  mat4.invert(navState, navState);
+  const octantZ = perspectiveNavigationState.zoomFactor.value;
+  let octant = vec4.fromValues(0.0, 0.0, -(octantZ), 1.0);
+  let perspectivePose = perspectiveNavigationState.pose;
+  let position = slicesNavigationState.position.value;
+  let pos = vec3.fromValues(position[0], position[1], position[2]);
+  let perspectiveQuat = perspectivePose.orientation.orientation;
+  let navQuat = quat.invert(quat.create(), slicesNavigationState.pose.orientation.orientation);
+  let resQuat = quat.multiply(quat.create(), navQuat, perspectiveQuat);
+  let rot = mat4.fromQuat(mat4.create(), resQuat);
+  vec4.transformMat4(octant, octant, rot);
+  octant[0] = octant[0] < pos[0] ? -1.0 : 1.0;
+  octant[1] = octant[1] < pos[1] ? -1.0 : 1.0;
+  octant[2] = octant[2] < pos[2] ? -1.0 : 1.0;
+  octant[3] = 1.0;//oc
+  return {
+    navState,
+    octant,
+    backFaceColor: vec4.fromValues(crossBackgroundColor[0], crossBackgroundColor[1], crossBackgroundColor[2], 1.0)
+  }
 }
 
 /**
@@ -187,6 +226,12 @@ export class MeshShaderManager {
     gl.uniform1ui(shader.uniform('uPickID'), pickID);
   }
 
+  setValuesForClipping(gl: GL, shader: ShaderProgram, values: ValuesForClipping) {
+		gl.uniformMatrix4fv(shader.uniform('uNavState'), false, values.navState);
+		gl.uniform4fv(shader.uniform('uOctant'), values.octant);
+		gl.uniform4fv(shader.uniform('uBackFaceColor'), values.backFaceColor);
+	}
+
   beginModel(
       gl: GL, shader: ShaderProgram, renderContext: PerspectiveViewRenderContext, modelMat: mat4) {
     const {projectionParameters} = renderContext;
@@ -199,6 +244,7 @@ export class MeshShaderManager {
     mat3.invert(tempMat3, tempMat3);
     mat3.transpose(tempMat3, tempMat3);
     gl.uniformMatrix3fv(shader.uniform('uNormalMatrix'), false, tempMat3);
+    gl.uniformMatrix4fv(shader.uniform('uModelMatrix'), false, modelMat);
   }
 
   drawFragmentHelper(
@@ -240,6 +286,55 @@ export class MeshShaderManager {
   endLayer(gl: GL, shader: ShaderProgram) {
     this.vertexPositionHandler.endLayer(gl, shader);
     gl.disableVertexAttribArray(shader.attribute('aVertexNormal'));
+  }
+
+  defineRemoveOctantShader(builder: ShaderBuilder) {
+    builder.addUniform('highp mat4', 'uModelMatrix');
+    builder.addVarying('highp vec4', 'vNavPos');
+    builder.addUniform('highp mat4', 'uNavState');
+    builder.addUniform('highp vec4', 'uOctant');
+    builder.addUniform('highp vec4', 'uBackFaceColor');
+    builder.addVarying('highp vec4', 'vBackFaceColor');
+
+    let vertexMain = ``;
+		if (this.fragmentRelativeVertices) {
+		  vertexMain += `
+  highp vec3 vertexPosition = uFragmentOrigin + uFragmentShape * getVertexPosition();
+  highp vec3 normalMultiplier = 1.0 / uFragmentShape;
+  `;
+		} else {
+		  vertexMain += `
+  highp vec3 vertexPosition = getVertexPosition();
+  highp vec3 normalMultiplier = vec3(1.0, 1.0, 1.0);
+  `;
+		}		
+		vertexMain += `
+vec4 position = uModelMatrix * vec4(vertexPosition, 1.0);
+if (uOctant.w > 0.0) {
+	vNavPos = uNavState * position * uOctant;
+} else {
+	vNavPos = vec4(-1.0);
+}
+gl_Position = uModelViewProjection * vec4(vertexPosition, 1.0);
+vec3 origNormal = decodeNormalOctahedronSnorm8(aVertexNormal);
+vec3 normal = normalize(uNormalMatrix * (normalMultiplier * origNormal));
+float lightingFactor = abs(dot(normal, uLightDirection.xyz)) + uLightDirection.w;
+vColor = vec4(lightingFactor * uColor.rgb, uColor.a);
+if (uColor.a < 1.0) {
+	vBackFaceColor = vec4(vColor.rgb, 0.0);
+} else {
+	vBackFaceColor = uBackFaceColor;
+}
+		`; //vBackFaceColor = vec4(lightingFactor * uBackFaceColor.rgb, uColor.a);
+		builder.setVertexMain(vertexMain);
+		builder.setFragmentMain(`
+if (vNavPos.x >= 0.0 && vNavPos.y >= 0.0 && vNavPos.z >= 0.0) {
+  discard;
+} else {
+  if (gl_FrontFacing) emit(vColor, uPickID);
+  else emit(vBackFaceColor, uPickID);
+}
+		`);
   }
 
   makeGetter(layer: RefCounted&{gl: GL, displayState: MeshDisplayState}) {
@@ -293,6 +388,9 @@ vColor *= pow(1.0 - absCosAngle, uSilhouettePower);
         }
         builder.setVertexMain(vertexMain);
         builder.setFragmentMain(`emit(vColor, uPickID);`);
+        if(layer.displayState.removeOctant.value) {
+          this.defineRemoveOctantShader(builder);
+        }
       },
     });
   }
@@ -362,6 +460,8 @@ export class MeshLayer extends
     if (shader === null) return;
     shader.bind();
     meshShaderManager.beginLayer(gl, shader, renderContext, this.displayState);
+    const valuesForClipping = getValuesForClipping(renderContext, displayState.removeOctant.value);
+    meshShaderManager.setValuesForClipping(gl, shader, valuesForClipping);
     meshShaderManager.beginModel(gl, shader, renderContext, modelMatrix);
 
     const manifestChunks = this.source.chunks;

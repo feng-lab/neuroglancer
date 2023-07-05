@@ -541,6 +541,9 @@ export class PerspectivePanel extends RenderedDataPanel {
       alreadyEmittedPickID: false,
       bindFramebuffer,
       frameNumber: this.context.frameNumber,
+      slicesNavigationState: (<any>this.viewer).slicesNavigationState,
+      perspectiveNavigationState: this.viewer.navigationState,
+      crossBackgroundColor: this.viewer.crossSectionBackgroundColor.value
     };
 
     mat4.copy(pickingData.invTransform, projectionParameters.invViewProjectionMat);
