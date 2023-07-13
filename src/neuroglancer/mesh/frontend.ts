@@ -56,12 +56,17 @@ function copyMeshDataToGpu(gl: GL, chunk: FragmentChunk|MultiscaleFragmentChunk)
       Buffer.fromData(gl, chunk.meshData.indices, gl.ELEMENT_ARRAY_BUFFER, gl.STATIC_DRAW);
   chunk.normalBuffer =
       Buffer.fromData(gl, chunk.meshData.vertexNormals, gl.ARRAY_BUFFER, gl.STATIC_DRAW);
+  if(chunk.meshData?.colors) {
+    chunk.colorsBuffer = 
+      Buffer.fromData(gl, chunk.meshData.colors, gl.ARRAY_BUFFER, gl.STATIC_DRAW);
+  }
 }
 
 function freeGpuMeshData(chunk: FragmentChunk|MultiscaleFragmentChunk) {
   chunk.vertexBuffer.dispose();
   chunk.indexBuffer.dispose();
   chunk.normalBuffer.dispose();
+  chunk?.colorsBuffer.dispose();
 }
 
 export function getValuesForClipping(renderContext: PerspectiveViewRenderContext, removeOctant: boolean) : ValuesForClipping {
@@ -172,6 +177,25 @@ function getFloatPositionHandler(glAttributeType: number): VertexPositionFormatH
   };
 }
 
+const vertexColorHandlers = {
+  defineShader: (builder: ShaderBuilder) => {
+    builder.addAttribute('highp vec3', 'aVertexColor');
+    builder.addUniform('bool', 'uCustomColor');
+    builder.addVertexCode(`
+highp vec3 getVertexColor() { 
+  return uCustomColor ? aVertexColor : uColor.rgb;
+}`)
+  },
+  bind(_gl: GL, shader: ShaderProgram, fragmentChunk: FragmentChunk|MultiscaleFragmentChunk) {
+    fragmentChunk.colorsBuffer.bindToVertexAttrib(
+        shader.attribute('aVertexColor'),
+        /*components=*/ 3, WebGL2RenderingContext.UNSIGNED_BYTE, /* normalized=*/ true);
+  },
+  endLayer: (gl: GL, shader: ShaderProgram) => {
+    gl.disableVertexAttribArray(shader.attribute('aVertexColor'));
+  }
+}
+
 const vertexPositionHandlers: {[format: number]: VertexPositionFormatHandler} = {
   [VertexPositionFormat.float32]: getFloatPositionHandler(WebGL2RenderingContext.FLOAT),
   [VertexPositionFormat.uint16]: getFloatPositionHandler(WebGL2RenderingContext.UNSIGNED_SHORT),
@@ -251,6 +275,12 @@ export class MeshShaderManager {
       gl: GL, shader: ShaderProgram, fragmentChunk: FragmentChunk|MultiscaleFragmentChunk,
       indexBegin: number, indexEnd: number) {
     this.vertexPositionHandler.bind(gl, shader, fragmentChunk);
+    let customColor = false;
+    if(fragmentChunk.meshData?.colors) {
+      vertexColorHandlers.bind(gl, shader, fragmentChunk);
+      customColor = true;
+    }
+    gl.uniform1i(shader.uniform("uCustomColor"), Number(customColor));
     const {meshData} = fragmentChunk;
     fragmentChunk.normalBuffer.bindToVertexAttrib(
         shader.attribute('aVertexNormal'),
@@ -285,6 +315,7 @@ export class MeshShaderManager {
 
   endLayer(gl: GL, shader: ShaderProgram) {
     this.vertexPositionHandler.endLayer(gl, shader);
+    vertexColorHandlers.endLayer(gl, shader);
     gl.disableVertexAttribArray(shader.attribute('aVertexNormal'));
   }
 
@@ -319,7 +350,9 @@ gl_Position = uModelViewProjection * vec4(vertexPosition, 1.0);
 vec3 origNormal = decodeNormalOctahedronSnorm8(aVertexNormal);
 vec3 normal = normalize(uNormalMatrix * (normalMultiplier * origNormal));
 float lightingFactor = abs(dot(normal, uLightDirection.xyz)) + uLightDirection.w;
-vColor = vec4(lightingFactor * uColor.rgb, uColor.a);
+vec3 tempColor = getVertexColor();
+//vColor = vec4(lightingFactor * uColor.rgb, uColor.a);
+vColor = vec4(lightingFactor * tempColor.rgb, uColor.a);
 if (uColor.a < 1.0) {
 	vBackFaceColor = vec4(vColor.rgb, 0.0);
 } else {
@@ -346,6 +379,7 @@ if (vNavPos.x >= 0.0 && vNavPos.y >= 0.0 && vNavPos.z >= 0.0) {
       parameters: silhouetteRenderingEnabled,
       defineShader: (builder, silhouetteRenderingEnabled) => {
         this.vertexPositionHandler.defineShader(builder);
+        vertexColorHandlers.defineShader(builder);
         builder.addAttribute('highp vec2', 'aVertexNormal');
         builder.addVarying('highp vec4', 'vColor');
         builder.addUniform('highp vec4', 'uLightDirection');
@@ -379,7 +413,9 @@ vec3 origNormal = decodeNormalOctahedronSnorm8(aVertexNormal);
 vec3 normal = normalize(uNormalMatrix * (normalMultiplier * origNormal));
 float absCosAngle = abs(dot(normal, uLightDirection.xyz));
 float lightingFactor = absCosAngle + uLightDirection.w;
-vColor = vec4(lightingFactor * uColor.rgb, uColor.a);
+vec3 tempColor = getVertexColor();
+//vColor = vec4(lightingFactor * uColor.rgb, uColor.a);
+vColor = vec4(lightingFactor * tempColor.rgb, uColor.a);
 `;
         if (silhouetteRenderingEnabled) {
           vertexMain += `
@@ -545,7 +581,8 @@ export class FragmentChunk extends Chunk {
   vertexBuffer: Buffer;
   indexBuffer: Buffer;
   normalBuffer: Buffer;
-  meshData: EncodedMeshData;
+  colorsBuffer: Buffer;
+  meshData: EncodedMeshData & {colors?: Uint8Array}; 
 
   constructor(source: FragmentSource, x: any) {
     super(source);
@@ -859,11 +896,12 @@ export class MultiscaleManifestChunk extends Chunk {
 }
 
 export class MultiscaleFragmentChunk extends Chunk {
-  meshData: EncodedMeshData&{subChunkOffsets: Uint32Array};
+  meshData: EncodedMeshData&{subChunkOffsets: Uint32Array, colors?: Uint8Array};
   source: MultiscaleFragmentSource;
   vertexBuffer: Buffer;
   indexBuffer: Buffer;
   normalBuffer: Buffer;
+  colorsBuffer: Buffer;
 
   constructor(source: MultiscaleFragmentSource, x: any) {
     super(source);

@@ -16,7 +16,7 @@
 
 import {Chunk, ChunkSource, withChunkManager} from 'neuroglancer/chunk_manager/backend';
 import {ChunkPriorityTier, ChunkState} from 'neuroglancer/chunk_manager/base';
-import {EncodedMeshData, EncodedVertexPositions, FRAGMENT_SOURCE_RPC_ID, MESH_LAYER_RPC_ID, MeshVertexIndices, MULTISCALE_FRAGMENT_SOURCE_RPC_ID, MULTISCALE_MESH_LAYER_RPC_ID, MultiscaleFragmentFormat, VertexPositionFormat} from 'neuroglancer/mesh/base';
+import {EncodedMeshData, EncodedMeshDataWithColor, EncodedVertexPositions, FRAGMENT_SOURCE_RPC_ID, MESH_LAYER_RPC_ID, MeshVertexIndices, MULTISCALE_FRAGMENT_SOURCE_RPC_ID, MULTISCALE_MESH_LAYER_RPC_ID, MultiscaleFragmentFormat, VertexPositionFormat} from 'neuroglancer/mesh/base';
 import {getDesiredMultiscaleMeshChunks, MultiscaleMeshManifest} from 'neuroglancer/mesh/multiscale';
 import {computeTriangleStrips} from 'neuroglancer/mesh/triangle_strips';
 import {PerspectiveViewBackend, PerspectiveViewRenderLayerBackend} from 'neuroglancer/perspective_view/backend';
@@ -28,7 +28,7 @@ import {forEachVisibleSegment} from 'neuroglancer/segmentation_display_state/bas
 import {CancellationToken} from 'neuroglancer/util/cancellation';
 import {convertEndian32, Endianness} from 'neuroglancer/util/endian';
 import {getFrustrumPlanes, mat4, vec3} from 'neuroglancer/util/geom';
-import {verifyObject, verifyObjectProperty, verifyStringArray} from 'neuroglancer/util/json';
+import {verifyObject, verifyObjectProperty, verifyOptionalBoolean, verifyOptionalObjectProperty, verifyStringArray} from 'neuroglancer/util/json';
 import {Uint64} from 'neuroglancer/util/uint64';
 import {zorder3LessThan} from 'neuroglancer/util/zorder';
 import {getBasePriority, getPriorityTier} from 'neuroglancer/visibility_priority/backend';
@@ -46,6 +46,7 @@ export type FragmentId = string;
 export class ManifestChunk extends Chunk {
   objectId = new Uint64();
   fragmentIds: FragmentId[]|null;
+  customColor: Boolean|undefined = false;
 
   constructor() {
     super();
@@ -59,11 +60,13 @@ export class ManifestChunk extends Chunk {
 
   freeSystemMemory() {
     this.fragmentIds = null;
+    this.customColor = false;
   }
 
   serialize(msg: any, transfers: any[]) {
     super.serialize(msg, transfers);
     msg.fragmentIds = this.fragmentIds;
+    msg.customColor = this.customColor;
   }
 
   downloadSucceeded() {
@@ -85,13 +88,14 @@ export class ManifestChunk extends Chunk {
 export interface RawMeshData {
   vertexPositions: Float32Array|Uint32Array;
   indices: MeshVertexIndices;
+  colors?: Uint8Array;
 }
 
 export interface RawPartitionedMeshData extends RawMeshData {
   subChunkOffsets: Uint32Array;
 }
 
-function serializeMeshData(data: EncodedMeshData, msg: any, transfers: any[]) {
+function serializeMeshData(data: EncodedMeshData & { colors?: Uint8Array}, msg: any, transfers: any[]) {
   const {vertexPositions, indices, vertexNormals, strips} = data;
   msg['vertexPositions'] = vertexPositions;
   msg['indices'] = indices;
@@ -99,6 +103,13 @@ function serializeMeshData(data: EncodedMeshData, msg: any, transfers: any[]) {
   msg['vertexNormals'] = vertexNormals;
   let vertexPositionsBuffer = vertexPositions!.buffer;
   transfers.push(vertexPositionsBuffer);
+  if(data?.colors) {
+    msg['colors'] = data.colors;
+    let colorBuffer = data.colors.buffer;
+    if(colorBuffer !== vertexPositionsBuffer) {
+      transfers.push(data.colors!.buffer);
+    }
+  }
   let indicesBuffer = indices!.buffer;
   if (indicesBuffer !== vertexPositionsBuffer) {
     transfers.push(indicesBuffer);
@@ -106,9 +117,13 @@ function serializeMeshData(data: EncodedMeshData, msg: any, transfers: any[]) {
   transfers.push(vertexNormals!.buffer);
 }
 
-function getMeshDataSize(data: EncodedMeshData) {
+function getMeshDataSize(data: EncodedMeshData & { colors?: Uint8Array}) {
   let {vertexPositions, indices, vertexNormals} = data;
-  return vertexPositions!.byteLength + indices!.byteLength + vertexNormals!.byteLength;
+  let size = vertexPositions!.byteLength + indices!.byteLength + vertexNormals!.byteLength;
+  if(data?.colors) {
+    size += data.colors.byteLength;
+  }
+  return size;
 }
 
 /**
@@ -117,7 +132,7 @@ function getMeshDataSize(data: EncodedMeshData) {
 export class FragmentChunk extends Chunk {
   manifestChunk: ManifestChunk|null = null;
   fragmentId: FragmentId|null = null;
-  meshData: EncodedMeshData|null = null;
+  meshData: EncodedMeshData|EncodedMeshDataWithColor|null = null;
   constructor() {
     super();
   }
@@ -148,9 +163,10 @@ export class FragmentChunk extends Chunk {
  * Verifies that response[keysPropertyName] is an array of strings.
  */
 export function decodeJsonManifestChunk(
-    chunk: ManifestChunk, response: any, keysPropertyName: string) {
+    chunk: ManifestChunk, response: any, keysPropertyName: string, colorPropertyName: string) {
   verifyObject(response);
   chunk.fragmentIds = verifyObjectProperty(response, keysPropertyName, verifyStringArray);
+  chunk.customColor = verifyOptionalObjectProperty(response, colorPropertyName, verifyOptionalBoolean);
 }
 
 /**
@@ -279,6 +295,36 @@ export function decodeVertexPositionsAndIndices(
   return {vertexPositions, indices};
 }
 
+export function decodeVertexPositionsAndIndicesAndColor(
+  verticesPerPrimitive: number, data: ArrayBuffer, endianness: Endianness,
+  vertexByteOffset: number, numVertices: number, indexByteOffset?: number,
+  numPrimitives?: number): RawMeshData {
+let vertexPositions = new Float32Array(data, vertexByteOffset, numVertices * 3);
+convertEndian32(vertexPositions, endianness);
+
+let colors = new Uint8Array(data, vertexByteOffset + 12 * numVertices, numVertices * 3);
+
+if (indexByteOffset === undefined) {
+  indexByteOffset = vertexByteOffset + 15 * numVertices;
+}
+
+let numIndices: number|undefined;
+if (numPrimitives !== undefined) {
+  numIndices = numPrimitives * verticesPerPrimitive;
+}
+
+// For compatibility with Firefox, length argument must not be undefined.
+let indices = numIndices === undefined ? new Uint32Array(data, indexByteOffset) :
+                                         new Uint32Array(data, indexByteOffset, numIndices);
+if (indices.length % verticesPerPrimitive !== 0) {
+  throw new Error(
+      `Number of indices is not a multiple of ${verticesPerPrimitive}: ${indices.length}.`);
+}
+convertEndian32(indices, endianness);
+
+return {vertexPositions, indices, colors};
+}
+
 /**
  * Extracts vertex positions and triangle vertex indices of the specified endianness from `data'.
  *
@@ -290,6 +336,14 @@ export function decodeTriangleVertexPositionsAndIndices(
     data: ArrayBuffer, endianness: Endianness, vertexByteOffset: number, numVertices: number,
     indexByteOffset?: number, numTriangles?: number) {
   return decodeVertexPositionsAndIndices(
+      /*verticesPerPrimitive=*/ 3, data, endianness, vertexByteOffset, numVertices, indexByteOffset,
+      numTriangles);
+}
+
+export function decodeTriangleVertexPositionsAndIndicesAndColor(
+    data: ArrayBuffer, endianness: Endianness, vertexByteOffset: number, numVertices: number,
+    indexByteOffset?: number, numTriangles?: number) {
+  return decodeVertexPositionsAndIndicesAndColor(
       /*verticesPerPrimitive=*/ 3, data, endianness, vertexByteOffset, numVertices, indexByteOffset,
       numTriangles);
 }
@@ -623,7 +677,7 @@ export class MultiscaleMeshLayer extends withSegmentationLayerBackendState
 
 function convertMeshData(
     data: RawMeshData&{subChunkOffsets?: Uint32Array},
-    vertexPositionFormat: VertexPositionFormat): EncodedMeshData {
+    vertexPositionFormat: VertexPositionFormat): EncodedMeshData|EncodedMeshDataWithColor {
   const normals = computeVertexNormals(data.vertexPositions, data.indices);
   const encodedNormals = new Uint8Array(normals.length / 3 * 2);
   encodeNormals32fx3ToOctahedron8x2(encodedNormals, normals);
@@ -663,12 +717,17 @@ function convertMeshData(
   } else {
     encodedVertexPositions = data.vertexPositions as Float32Array;
   }
-  return {
+  const encodedRes = {
     vertexPositions: encodedVertexPositions,
     vertexNormals: encodedNormals,
     indices: encodedIndices,
     strips,
   };
+
+  return data?.colors ? {
+    ...encodedRes,
+    colors: data.colors
+  }: encodedRes;
 }
 
 export function assignMeshFragmentData(

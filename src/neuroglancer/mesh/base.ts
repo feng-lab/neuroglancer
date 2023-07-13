@@ -31,6 +31,10 @@ export interface EncodedMeshData {
   strips: boolean;
 }
 
+export interface EncodedMeshDataWithColor extends EncodedMeshData {
+  colors: Uint8Array;
+}
+
 export interface MultiscaleFragmentFormat {
   /**
    * If `true`, vertex positions are specified relative to the fragment bounds, meaning (0, 0, 0) is
