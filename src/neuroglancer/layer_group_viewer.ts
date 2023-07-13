@@ -62,6 +62,8 @@ export interface LayerGroupViewerState {
   visibleLayerRoles: WatchableSet<RenderLayerRole>;
   crossSectionBackgroundColor: TrackableRGB;
   crossSectionBackgroundAlpha: TrackableValue<number>;
+  sliceViewCrossSectionBgColor: TrackableRGB;
+  sliceViewCrossSectionBgAlpha: TrackableValue<number>;
   perspectiveViewBackgroundColor: TrackableRGB;
 }
 
@@ -278,6 +280,12 @@ export class LayerGroupViewer extends RefCounted {
   }
   get crossSectionBackgroundAlpha() {
     return this.viewerState.crossSectionBackgroundAlpha;
+  }
+  get sliceViewCrossSectionBgColor() {
+    return this.viewerState.sliceViewCrossSectionBgColor;
+  }
+  get sliceViewCrossSectionBgAlpha() {
+    return this.viewerState.sliceViewCrossSectionBgAlpha;
   }
   get perspectiveViewBackgroundColor() {
     return this.viewerState.perspectiveViewBackgroundColor;

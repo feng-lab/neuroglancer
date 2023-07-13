@@ -22,7 +22,7 @@ import {DisplayContext} from 'neuroglancer/display_context';
 import {LayerManager, MouseSelectionState, SelectedLayerState, TrackableDataSelectionState} from 'neuroglancer/layer';
 import * as L from 'neuroglancer/layout';
 import {DisplayPose, LinkedOrientationState, LinkedPosition, linkedStateLegacyJsonView, LinkedZoomState, NavigationState, OrientationState, TrackableZoomInterface} from 'neuroglancer/navigation_state';
-import {PerspectivePanel} from 'neuroglancer/perspective_view/panel';
+import {PerspectivePanel, PerspectiveViewerState} from 'neuroglancer/perspective_view/panel';
 import {RenderedDataPanel} from 'neuroglancer/rendered_data_panel';
 import {RenderLayerRole} from 'neuroglancer/renderlayer';
 import {SliceView} from 'neuroglancer/sliceview/frontend';
@@ -47,6 +47,8 @@ export interface SliceViewViewerState {
   navigationState: NavigationState;
   layerManager: LayerManager;
   wireFrame: WatchableValueInterface<boolean>;
+  sliceViewCrossSectionBgColor: TrackableRGB;
+  sliceViewCrossSectionBgAlpha: TrackableValue<number>;
 }
 
 export class InputEventBindings {
@@ -156,6 +158,8 @@ function getCommonSliceViewerState(viewer: ViewerUIState) {
     ...getCommonViewerState(viewer),
     navigationState: viewer.navigationState,
     inputEventMap: viewer.inputEventBindings.sliceView,
+    sliceViewCrossSectionBgColor: viewer.sliceViewCrossSectionBgColor,
+    sliceViewCrossSectionBgAlpha: viewer.sliceViewCrossSectionBgAlpha
   };
 }
 
@@ -247,77 +251,230 @@ function addUnconditionalSliceViews(
   update();
 }
 
-export class FourPanelLayout extends RefCounted {
+export class BaseFourPanelLayout extends RefCounted {
+  protected perspectiveViewerState: PerspectiveViewerState & {slicesNavigationState: NavigationState};
+  protected sliceViewerState: SliceViewerState;
+  protected sliceViewerStateWithoutScaleBar: SliceViewerState;
+  protected display: any;
+  protected sliceViews: Map<NamedAxes, SliceView>;
+  protected crossSections: Borrowed<CrossSectionSpecificationMap>;
+
   constructor(
       public container: DataPanelLayoutContainer, public rootElement: HTMLElement,
       public viewer: ViewerUIState, crossSections: Borrowed<CrossSectionSpecificationMap>) {
     super();
 
-    let sliceViews = makeOrthogonalSliceViews(viewer);
-    let {display} = viewer;
+    this.crossSections = crossSections;
+    this.sliceViews = makeOrthogonalSliceViews(viewer);
+    this.display = viewer.display;
 
-    const perspectiveViewerState = {
+    this.perspectiveViewerState = {
       ...getCommonPerspectiveViewerState(container),
       showSliceViews: viewer.showPerspectiveSliceViews,
       showSliceViewsCheckbox: true,
       slicesNavigationState: viewer.navigationState
     };
 
-    const sliceViewerState = {
+    this.sliceViewerState = {
       ...getCommonSliceViewerState(viewer),
       showScaleBar: viewer.showScaleBar,
     };
 
-    const sliceViewerStateWithoutScaleBar = {
+    this.sliceViewerStateWithoutScaleBar = {
       ...getCommonSliceViewerState(viewer),
       showScaleBar: new TrackableBoolean(false, false),
     };
 
-    const makeSliceViewPanel =
-        (axes: NamedAxes, element: HTMLElement, state: SliceViewerState,
-         displayDimensionsWidget: boolean) => {
-          const panel = this.registerDisposer(
-              new SliceViewPanel(display, element, sliceViews.get(axes)!, state));
-          if (displayDimensionsWidget) {
-            addDisplayDimensionsWidget(this, panel);
-          }
-          registerRelatedLayouts(this, panel, [axes, `${axes}-3d`]);
-          return panel;
-        };
-    let mainDisplayContents = [
-      L.withFlex(1, L.box('column', [
-        L.withFlex(1, L.box('row', [
-          L.withFlex(1, element => {
-            makeSliceViewPanel('xy', element, sliceViewerState, true);
-          }),
-          L.withFlex(1, element => {
-            makeSliceViewPanel('xz', element, sliceViewerStateWithoutScaleBar, false);
-          })
-        ])),
-        L.withFlex(1, L.box('row', [
-          L.withFlex(1, element => {
-            let panel = this.registerDisposer(
-                new PerspectivePanel(display, element, perspectiveViewerState));
-            for (let sliceView of sliceViews.values()) {
-              panel.sliceViews.set(sliceView.addRef(), false);
-            }
-            addDisplayDimensionsWidget(this, panel);
-            addUnconditionalSliceViews(viewer, panel, crossSections);
-            registerRelatedLayouts(this, panel, ['3d']);
-          }),
-          L.withFlex(1, element => {
-            makeSliceViewPanel('yz', element, sliceViewerStateWithoutScaleBar, false);
-          })
-        ])),
-      ]))
-    ];
+    let mainDisplayContents: L.Handler[] = this.generateMainDisplayContents();
     L.box('row', mainDisplayContents)(rootElement);
   }
+
+  generateMainDisplayContents(): L.Handler[] {
+    return []
+  }
+
+  makeSliceViewPanel(axes: NamedAxes, element: HTMLElement, state: SliceViewerState,
+         displayDimensionsWidget: boolean) {
+    const panel = this.registerDisposer(
+        new SliceViewPanel(this.display, element, this.sliceViews.get(axes)!, state));
+    if (displayDimensionsWidget) {
+      addDisplayDimensionsWidget(this, panel);
+    }
+    registerRelatedLayouts(this, panel, [axes, `${axes}-3d`]);
+    return panel;
+  };
 
   disposed() {
     removeChildren(this.rootElement);
     super.disposed();
   }
+
+}
+
+export class FourPanelLayout extends BaseFourPanelLayout{
+  generateMainDisplayContents(): L.Handler[] {
+    return [
+      L.withFlex(1, L.box('column', [
+        L.withFlex(1, L.box('row', [
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('xy', element, this.sliceViewerState, true);
+          }),
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('xz', element, this.sliceViewerStateWithoutScaleBar, false);
+          })
+        ])),
+        L.withFlex(1, L.box('row', [
+          L.withFlex(1, element => {
+            let panel = this.registerDisposer(
+                new PerspectivePanel(this.display, element, this.perspectiveViewerState));
+            for (let sliceView of this.sliceViews.values()) {
+              panel.sliceViews.set(sliceView.addRef(), false);
+            }
+            addDisplayDimensionsWidget(this, panel);
+            addUnconditionalSliceViews(this.viewer, panel, this.crossSections);
+            registerRelatedLayouts(this, panel, ['3d']);
+          }),
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('yz', element, this.sliceViewerStateWithoutScaleBar, false);
+          })
+        ])),
+      ]))
+    ];
+  }
+
+}
+
+export class ThreeSliceViewPanelTopLayout extends BaseFourPanelLayout{
+  generateMainDisplayContents(): L.Handler[] {
+    return [
+      L.withFlex(1, L.box('column', [
+        L.withFlex(1, L.box('row', [
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('xy', element, this.sliceViewerState, true);
+          }),
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('xz', element, this.sliceViewerStateWithoutScaleBar, false);
+          }),
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('yz', element, this.sliceViewerStateWithoutScaleBar, false);
+          })
+        ])),
+        L.withFlex(2, L.box('row', [
+          L.withFlex(1, element => {
+            let panel = this.registerDisposer(
+                new PerspectivePanel(this.display, element, this.perspectiveViewerState));
+            for (let sliceView of this.sliceViews.values()) {
+              panel.sliceViews.set(sliceView.addRef(), false);
+            }
+            addDisplayDimensionsWidget(this, panel);
+            addUnconditionalSliceViews(this.viewer, panel, this.crossSections);
+            registerRelatedLayouts(this, panel, ['3d']);
+          })
+        ])),
+      ]))
+    ]
+  }
+}
+
+export class ThreeSliceViewPanelRightLayout extends BaseFourPanelLayout{
+  generateMainDisplayContents(): L.Handler[] {
+    return [
+      L.withFlex(1, L.box('row', [
+        L.withFlex(2, L.box('row', [
+          L.withFlex(1, element => {
+            let panel = this.registerDisposer(
+                new PerspectivePanel(this.display, element, this.perspectiveViewerState));
+            for (let sliceView of this.sliceViews.values()) {
+              panel.sliceViews.set(sliceView.addRef(), false);
+            }
+            addDisplayDimensionsWidget(this, panel);
+            addUnconditionalSliceViews(this.viewer, panel, this.crossSections);
+            registerRelatedLayouts(this, panel, ['3d']);
+          })
+        ])),
+        L.withFlex(1, L.box('column', [
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('xy', element, this.sliceViewerState, true);
+          }),
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('xz', element, this.sliceViewerStateWithoutScaleBar, false);
+          }),
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('yz', element, this.sliceViewerStateWithoutScaleBar, false);
+          })
+        ])),
+      ]))
+    ]
+
+  }
+
+}
+export class ThreeSliceViewPanelBottomLayout extends BaseFourPanelLayout{
+  generateMainDisplayContents(): L.Handler[] {
+    return [
+      L.withFlex(1, L.box('column', [
+        L.withFlex(2, L.box('row', [
+          L.withFlex(1, element => {
+            let panel = this.registerDisposer(
+                new PerspectivePanel(this.display, element, this.perspectiveViewerState));
+            for (let sliceView of this.sliceViews.values()) {
+              panel.sliceViews.set(sliceView.addRef(), false);
+            }
+            addDisplayDimensionsWidget(this, panel);
+            addUnconditionalSliceViews(this.viewer, panel, this.crossSections);
+            registerRelatedLayouts(this, panel, ['3d']);
+          })
+        ])),
+        L.withFlex(1, L.box('row', [
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('xy', element, this.sliceViewerState, true);
+          }),
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('xz', element, this.sliceViewerStateWithoutScaleBar, false);
+          }),
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('yz', element, this.sliceViewerStateWithoutScaleBar, false);
+          })
+        ])),
+      ]))
+    ]
+
+  }
+
+}
+
+export class ThreeSliceViewPanelLeftLayout extends BaseFourPanelLayout{
+  generateMainDisplayContents(): L.Handler[] {
+    return [
+      L.withFlex(1, L.box('row', [
+        L.withFlex(1, L.box('column', [
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('xy', element, this.sliceViewerState, true);
+          }),
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('xz', element, this.sliceViewerStateWithoutScaleBar, false);
+          }),
+          L.withFlex(1, element => {
+            this.makeSliceViewPanel('yz', element, this.sliceViewerStateWithoutScaleBar, false);
+          })
+        ])),
+        L.withFlex(2, L.box('row', [
+          L.withFlex(1, element => {
+            let panel = this.registerDisposer(
+                new PerspectivePanel(this.display, element, this.perspectiveViewerState));
+            for (let sliceView of this.sliceViews.values()) {
+              panel.sliceViews.set(sliceView.addRef(), false);
+            }
+            addDisplayDimensionsWidget(this, panel);
+            addUnconditionalSliceViews(this.viewer, panel, this.crossSections);
+            registerRelatedLayouts(this, panel, ['3d']);
+          })
+        ])),
+      ]))
+    ]
+
+  }
+
 }
 
 export class SliceViewPerspectiveTwoPanelLayout extends RefCounted {
@@ -438,6 +595,30 @@ export const LAYOUTS = new Map<string, {
         '3d', {
           factory: (container, element, viewer, crossSections) =>
               new SinglePerspectiveLayout(container, element, viewer, crossSections)
+        }
+      ],
+      [
+        '3sliceT', {
+          factory: (container, element, viewer, crossSections) =>
+              new ThreeSliceViewPanelTopLayout(container, element, viewer, crossSections)
+        }
+      ],
+      [
+        '3sliceR', {
+          factory: (container, element, viewer, crossSections) =>
+              new ThreeSliceViewPanelRightLayout(container, element, viewer, crossSections)
+        }
+      ],
+      [
+        '3sliceB', {
+          factory: (container, element, viewer, crossSections) =>
+              new ThreeSliceViewPanelBottomLayout(container, element, viewer, crossSections)
+        }
+      ],
+      [
+        '3sliceL', {
+          factory: (container, element, viewer, crossSections) =>
+              new ThreeSliceViewPanelLeftLayout(container, element, viewer, crossSections)
         }
       ],
     ],

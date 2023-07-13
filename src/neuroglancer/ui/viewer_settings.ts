@@ -107,12 +107,21 @@ export class ViewerSettingsPanel extends SidePanel {
     addColor('Cross-section background', viewer.crossSectionBackgroundColor);
     {
       const labelElement = document.createElement('label');
-      labelElement.textContent = "Cross-section in 3-d alpha";
+      labelElement.textContent = "Cross-section's alpha in 3-d";
       const options = { step: 0.1}
       const range = this.registerDisposer(new RangeWidget(viewer.crossSectionBackgroundAlpha, options));
       labelElement.appendChild(range.element);
       scroll.appendChild(labelElement);
     }
     addColor('Projection background', viewer.perspectiveViewBackgroundColor);
+    {
+      const labelElement = document.createElement('label');
+      labelElement.textContent = "Cross-section'alpha in slice view";
+      const options = { step: 0.1}
+      const range = this.registerDisposer(new RangeWidget(viewer.sliceViewCrossSectionBgAlpha, options));
+      labelElement.appendChild(range.element);
+      scroll.appendChild(labelElement);
+    }
+    addColor('Slice View Cross-section background', viewer.sliceViewCrossSectionBgColor);
   }
 }

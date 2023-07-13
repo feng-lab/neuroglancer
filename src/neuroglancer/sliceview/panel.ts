@@ -31,12 +31,15 @@ import {TouchRotateInfo} from 'neuroglancer/util/touch_bindings';
 import {FramebufferConfiguration, OffscreenCopyHelper, TextureBuffer} from 'neuroglancer/webgl/offscreen';
 import {ShaderBuilder} from 'neuroglancer/webgl/shader';
 import {MultipleScaleBarTextures, TrackableScaleBarOptions} from 'neuroglancer/widget/scale_bar';
+import { TrackableValue } from '../trackable_value';
 
 export interface SliceViewerState extends RenderedDataViewerState {
   showScaleBar: TrackableBoolean;
   wireFrame: TrackableBoolean;
   scaleBarOptions: TrackableScaleBarOptions;
   crossSectionBackgroundColor: TrackableRGB;
+  sliceViewCrossSectionBgColor: TrackableRGB;
+  sliceViewCrossSectionBgAlpha: TrackableValue<number>;
 }
 
 export enum OffscreenTextures {
@@ -157,6 +160,10 @@ export class SliceViewPanel extends RenderedDataPanel {
 
     this.registerDisposer(
         viewer.crossSectionBackgroundColor.changed.add(() => this.scheduleRedraw()));
+    this.registerDisposer(
+        viewer.sliceViewCrossSectionBgColor.changed.add(() => this.scheduleRedraw()));
+    this.registerDisposer(
+        viewer.sliceViewCrossSectionBgAlpha.changed.add(() => this.scheduleRedraw()));
     this.registerDisposer(sliceView.visibility.add(this.visibility));
     this.registerDisposer(sliceView.viewChanged.add(() => {
       if (this.visible) {
@@ -240,11 +247,12 @@ export class SliceViewPanel extends RenderedDataPanel {
     gl.clear(WebGL2RenderingContext.COLOR_BUFFER_BIT);
 
     const backgroundColor = tempVec4;
-    const crossSectionBackgroundColor = this.viewer.crossSectionBackgroundColor.value;
+    const useSliceCrossSectionBgColor = this.viewer.sliceViewCrossSectionBgColor.value[0] >= 0;
+    const crossSectionBackgroundColor = useSliceCrossSectionBgColor ? this.viewer.sliceViewCrossSectionBgColor.value : this.viewer.crossSectionBackgroundColor.value;
     backgroundColor[0] = crossSectionBackgroundColor[0];
     backgroundColor[1] = crossSectionBackgroundColor[1];
     backgroundColor[2] = crossSectionBackgroundColor[2];
-    backgroundColor[3] = 1;
+    backgroundColor[3] = this.viewer.sliceViewCrossSectionBgAlpha.value;
 
     this.offscreenFramebuffer.bindSingle(OffscreenTextures.COLOR);
     this.sliceViewRenderHelper.draw(
