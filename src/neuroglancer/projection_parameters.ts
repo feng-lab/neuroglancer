@@ -53,6 +53,8 @@ export class ProjectionParameters extends RenderViewport {
    * Inverse of `viewProjectionMat`.
    */
   invViewProjectionMat: mat4 = mat4.create();
+
+  baseFactor: number;
 }
 
 export function projectionParametersEqual(a: ProjectionParameters, b: ProjectionParameters) {
