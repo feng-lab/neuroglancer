@@ -225,6 +225,7 @@ export class PerspectivePanel extends RenderedDataPanel {
           zoomFactor *= f;
           mat4.perspective(projectionMat, fovy, widthOverHeight, nearBound, farBound);
         }
+        out.baseFactor = zoomFactor;
         applyRenderViewportToProjectionMatrix(out, projectionMat);
         navigationState.pose.toMat4(invViewMatrix, zoomFactor);
         mat4.scale(invViewMatrix, invViewMatrix, vec3.set(tempVec3, 1, -1, -1));
