@@ -23,7 +23,7 @@ import {AnnotationRenderContext, AnnotationRenderHelper, AnnotationShaderGetter,
 import {ShaderBuilder, ShaderProgram} from 'neuroglancer/webgl/shader';
 import {defineVectorArrayVertexShaderInput} from 'neuroglancer/webgl/shader_lib';
 import { AtlasSphereRenderHelper } from '../webgl/atlasSpheres';
-import { vec3 } from '../util/geom';
+import { mat4 } from '../util/geom';
 import { defineLightingShader, setLightingShader } from '../webgl/lighting';
 
 class RenderHelper extends AnnotationRenderHelper {
@@ -37,8 +37,13 @@ class RenderHelper extends AnnotationRenderHelper {
         rank);
     builder.addVertexCode(`
 float ng_sphereRadius;
+float ng_sphereRadiusScale;
+
 void setSphereRadius(float radius) {
   ng_sphereRadius = radius;
+}
+void setSphereRadiusScale(float scale){
+  ng_sphereRadiusScale = scale;
 }
 void setSphereColor(vec4 color) {
   vColor = color;
@@ -46,10 +51,11 @@ void setSphereColor(vec4 color) {
 `);
     builder.addVertexMain(`
 ng_sphereRadius = 0.001 + uRadiusCoefficient;
+ng_sphereRadiusScale = 1.0;
 float modelPosition[${rank}] = getVertexPosition0();
 ${this.invokeUserMain}
 ${this.invokeColorCode}
-emitSphere(uProjection, uView, uModel, ng_sphereRadius, modelPosition, uBoxCorrection);
+emitSphere(uProjection, uView, uModel, ng_sphereRadius * ng_sphereRadiusScale, modelPosition, uBoxCorrection);
 ${this.setPartIndex(builder)};
 `);
   }
@@ -107,7 +113,7 @@ emit(color, vPickID);
         builder.addUniform('highp mat4', 'uView');
         builder.addUniform('highp mat4', 'uModel');
         builder.addUniform('highp float', 'uRadiusCoefficient');
-        this.defineShader(builder)
+        this.defineShader(builder);
         this.defineFragment(builder);
       });
 
@@ -131,28 +137,62 @@ emit(color, vPickID);
 
     this.enable(shaderGetter, context, shader => {
       const { gl } = shader;
-      const { viewMatrix, projectionMat, displayDimensionRenderInfo } = context.projectionParameters;
-      const rightVector = vec3.fromValues(viewMatrix[0], viewMatrix[1], viewMatrix[2]);
-      const upVector = vec3.fromValues(viewMatrix[4], viewMatrix[5], viewMatrix[6]);
-      const rightLength = vec3.length(rightVector);
-      const upLength = vec3.length(upVector);
-      const invRightLength = 1/rightLength;
-      const invUpLength = 1/upLength;
+      const { viewMatrix, projectionMat, displayDimensionRenderInfo, baseFactor} = context.projectionParameters;
+      // const rightVector = vec3.fromValues(viewMatrix[0], viewMatrix[1], viewMatrix[2]);
+      // const upVector = vec3.fromValues(viewMatrix[4], viewMatrix[5], viewMatrix[6]);
+      // const rightLength = vec3.length(rightVector);
+      // const upLength = vec3.length(upVector);
+      // const invRightLength = 1/rightLength;
+      // const invUpLength = 1/upLength;
 
       const radiusCoefficient = Math.floor(
         Math.log10(displayDimensionRenderInfo.canonicalVoxelPhysicalSize) - (-9)) * 1e-3;
 
+      // const radius = 7.5 * 1e-6 / displayDimensionRenderInfo.canonicalVoxelPhysicalSize;
+
+      // console.log('pq radius', radius);
+      
+      // console.log('pq physicalsize',displayDimensionRenderInfo.canonicalVoxelPhysicalSize);
+
       gl.uniformMatrix4fv(shader.uniform('uProjection'), /*transpose=*/ false, projectionMat);
-      gl.uniformMatrix4fv(shader.uniform('uView'), /*transpose=*/ false, viewMatrix);
-      gl.uniformMatrix4fv(shader.uniform('uModel'), /*transpose=*/ false, context.renderSubspaceModelMatrix);
+
+      let pqView: mat4 = mat4.create();
+      for (let i = 0; i < 3; ++i) {
+        const scale =displayDimensionRenderInfo.canonicalVoxelFactors[i];
+        pqView[i] /= scale;
+        pqView[4 + i] /= scale;
+        pqView[8 + i] /= scale; 
+        // pqView[12 + i] = context.projectionParameters.globalPosition[i]*(1 - 1/scale);
+        //pqView[12 + i] = 1 -scale;
+      }
+      mat4.multiply(pqView, viewMatrix, pqView);
+      // gl.uniformMatrix4fv(shader.uniform('uView'), /*transpose=*/ false, viewMatrix);
+      gl.uniformMatrix4fv(shader.uniform('uView'), /*transpose=*/ false, pqView);
+
+      let pqModel:mat4=mat4.create();
+      for (let i = 0; i < 3; ++i) {
+          const scale =displayDimensionRenderInfo.canonicalVoxelFactors[i];
+          pqModel[i] *= scale;
+          pqModel[4 + i] *= scale;
+          pqModel[8 + i] *= scale; 
+      }
+      // mat4.multiply(pqModel,pqModel,context.renderSubspaceModelMatrix);
+      // gl.uniformMatrix4fv(shader.uniform('uModel'), /*transpose=*/ false, pqModel);
+      gl.uniformMatrix4fv(shader.uniform('uModel'), /*transpose=*/ false, mat4.multiply(pqModel,pqModel,context.renderSubspaceModelMatrix));
+      // gl.uniformMatrix4fv(shader.uniform('uModel'), /*transpose=*/ false, context.renderSubspaceModelMatrix);
       gl.uniform1f(shader.uniform("uRadiusCoefficient"), radiusCoefficient);
+      // gl.uniform1f(
+      //   shader.uniform('uBoxCorrection'), 
+      //   1.2 * invRightLength * invUpLength
+      //   * context.renderSubspaceInvModelMatrix[0]  //modelx scale
+      //   * context.renderSubspaceInvModelMatrix[5]  //modely scale
+      //   * context.renderSubspaceInvModelMatrix[10] //modelz scale
+      // );
       gl.uniform1f(
         shader.uniform('uBoxCorrection'), 
-        1.2 * invRightLength * invUpLength
-        * context.renderSubspaceInvModelMatrix[0]  //modelx scale
-        * context.renderSubspaceInvModelMatrix[5]  //modely scale
-        * context.renderSubspaceInvModelMatrix[10] //modelz scale
+        baseFactor * baseFactor * 1.66
       );
+      console.log('pq basefactor', baseFactor);
       const ortho = this.targetIsSliceView ? 1.0 : 0.0;
       gl.uniform1f(shader.uniform("uOrtho"), ortho);
       setLightingShader(shader, true);
