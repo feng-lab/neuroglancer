@@ -245,6 +245,9 @@ export class PerspectivePanel extends RenderedDataPanel {
 
     registerActionListener(element, 'rotate-via-mouse-drag', (e: ActionEvent<MouseEvent>) => {
       startRelativeMouseDrag(e.detail, (_event, deltaX, deltaY) => {
+        if(this.navigationState.pose.orientation.orientation.filter(x => x !== 0).length === 0) {
+          this.translateByViewportPixels(deltaX, deltaY);
+        }
         this.navigationState.pose.rotateRelative(kAxes[1], deltaX / 4.0 * Math.PI / 180.0);
         this.navigationState.pose.rotateRelative(kAxes[0], -deltaY / 4.0 * Math.PI / 180.0);
       });

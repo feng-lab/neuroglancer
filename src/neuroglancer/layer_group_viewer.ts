@@ -42,6 +42,7 @@ import {CompoundTrackable, optionallyRestoreFromJsonMember} from 'neuroglancer/u
 import {WatchableVisibilityPriority} from 'neuroglancer/visibility_priority/frontend';
 import {EnumSelectWidget} from 'neuroglancer/widget/enum_widget';
 import {TrackableScaleBarOptions} from 'neuroglancer/widget/scale_bar';
+import { verifyOptionalString } from './util/json';
 
 declare var NEUROGLANCER_SHOW_LAYER_BAR_EXTRA_BUTTONS: boolean|undefined;
 
@@ -297,6 +298,8 @@ export class LayerGroupViewer extends RefCounted {
   layout: DataPanelLayoutContainer;
 
   options: LayerGroupViewerOptions;
+  groupLabel: TrackableValue<string|undefined>;
+  subGroupLabel: TrackableValue<string|undefined>;
 
   state = new CompoundTrackable();
 
@@ -336,6 +339,12 @@ export class LayerGroupViewer extends RefCounted {
     this.registerDisposer(new AutomaticallyFocusedElement(element));
 
     this.layout = this.registerDisposer(new DataPanelLayoutContainer(this, 'xy'));
+    this.groupLabel = new TrackableValue<string|undefined>("", verifyOptionalString);
+    this.subGroupLabel = new TrackableValue<string|undefined>("", verifyOptionalString);
+    this.state.add('groupLabel', this.groupLabel);
+    this.registerDisposer(this.groupLabel.changed.add(this.registerCancellable(debounce(() => this.updateUI(), 0))));
+    this.state.add('subGroupLabel', this.subGroupLabel);
+    this.registerDisposer(this.subGroupLabel.changed.add(this.registerCancellable(debounce(() => this.updateUI(), 0))));
     this.state.add('layout', this.layout);
     this.registerActionBindings();
     this.registerDisposer(this.layerManager.useDirectly());
@@ -393,13 +402,14 @@ export class LayerGroupViewer extends RefCounted {
   }
 
   private updateUI() {
-    const {options} = this;
+    const {groupLabel, subGroupLabel, options} = this;
     const showLayerPanel = options.showLayerPanel.value;
     if (this.layerPanel !== undefined && !showLayerPanel) {
       this.layerPanel.dispose();
       this.layerPanel = undefined;
       return;
     }
+
     if (showLayerPanel && this.layerPanel === undefined) {
       const layerPanel = this.layerPanel = new LayerBar(
           this.display, this.layerSpecification, this.viewerNavigationState,
@@ -478,6 +488,27 @@ export class LayerGroupViewer extends RefCounted {
         }
       });
       this.element.insertBefore(layerPanelElement, this.element.firstChild);
+    }
+    if(groupLabel.value) {
+      const labelElement = document.createElement("div");
+      labelElement.className = "neuroglancer-layer-group-viewer-label"
+
+      const groupLabelElement = document.createElement("div");
+      groupLabelElement.className = "neuroglancer-layer-group-viewer-label-group"
+      const groupLabelElementText = document.createTextNode(groupLabel.value);
+      groupLabelElement.appendChild(groupLabelElementText);
+
+      labelElement.appendChild(groupLabelElement);
+
+      if(subGroupLabel.value) {
+        const subGroupLabelElement = document.createElement("div");
+        subGroupLabelElement.className = "neuroglancer-layer-group-viewer-label-sub"
+        const subGroupLabelElementText = document.createTextNode(subGroupLabel.value);
+        subGroupLabelElement.appendChild(subGroupLabelElementText);
+        labelElement.appendChild(subGroupLabelElement)
+      }
+
+      this.element.insertBefore(labelElement, this.element.firstChild);
     }
   }
 

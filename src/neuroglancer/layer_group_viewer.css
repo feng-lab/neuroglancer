@@ -29,6 +29,7 @@
 }
 
 .neuroglancer-layer-group-viewer {
+  position: relative;
   outline: 0px;
 }
 
@@ -50,4 +51,11 @@
 
 .neuroglancer-layer-group-viewer-context-menu select {
   margin-left: 5px;
+}
+
+.neuroglancer-layer-group-viewer-label {
+  position: absolute;
+  bottom: 10px;
+  width: 100%;
+  text-align: center;
 }
