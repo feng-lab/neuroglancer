@@ -74,7 +74,7 @@ export class BossVolumeChunkSource extends (BossSource(VolumeChunkSource, Volume
 }
 
 function decodeManifestChunk(chunk: ManifestChunk, response: any) {
-  return decodeJsonManifestChunk(chunk, response, 'fragments');
+  return decodeJsonManifestChunk(chunk, response, 'fragments', 'customColor');
 }
 
 function decodeFragmentChunk(chunk: FragmentChunk, response: ArrayBuffer) {

@@ -88,14 +88,14 @@ export class ManifestChunk extends Chunk {
 export interface RawMeshData {
   vertexPositions: Float32Array|Uint32Array;
   indices: MeshVertexIndices;
-  colors?: Uint8Array;
+  colors?: Float32Array;
 }
 
 export interface RawPartitionedMeshData extends RawMeshData {
   subChunkOffsets: Uint32Array;
 }
 
-function serializeMeshData(data: EncodedMeshData & { colors?: Uint8Array}, msg: any, transfers: any[]) {
+function serializeMeshData(data: EncodedMeshData & { colors?: Float32Array}, msg: any, transfers: any[]) {
   const {vertexPositions, indices, vertexNormals, strips} = data;
   msg['vertexPositions'] = vertexPositions;
   msg['indices'] = indices;
@@ -117,7 +117,7 @@ function serializeMeshData(data: EncodedMeshData & { colors?: Uint8Array}, msg: 
   transfers.push(vertexNormals!.buffer);
 }
 
-function getMeshDataSize(data: EncodedMeshData & { colors?: Uint8Array}) {
+function getMeshDataSize(data: EncodedMeshData & { colors?: Float32Array}) {
   let {vertexPositions, indices, vertexNormals} = data;
   let size = vertexPositions!.byteLength + indices!.byteLength + vertexNormals!.byteLength;
   if(data?.colors) {
@@ -302,10 +302,11 @@ export function decodeVertexPositionsAndIndicesAndColor(
 let vertexPositions = new Float32Array(data, vertexByteOffset, numVertices * 3);
 convertEndian32(vertexPositions, endianness);
 
-let colors = new Uint8Array(data, vertexByteOffset + 12 * numVertices, numVertices * 3);
+let colors = new Float32Array(data, vertexByteOffset + 12 * numVertices, numVertices * 3);
+convertEndian32(colors, endianness);
 
 if (indexByteOffset === undefined) {
-  indexByteOffset = vertexByteOffset + 15 * numVertices;
+  indexByteOffset = vertexByteOffset + 24 * numVertices;
 }
 
 let numIndices: number|undefined;

@@ -23,7 +23,7 @@ import {Chunk, ChunkManager, WithParameters} from 'neuroglancer/chunk_manager/ba
 import {GenericSharedDataSource} from 'neuroglancer/chunk_manager/generic_file_source';
 import {WithSharedCredentialsProviderCounterpart} from 'neuroglancer/credentials_provider/shared_counterpart';
 import {AnnotationSourceParameters, AnnotationSpatialIndexSourceParameters, DataEncoding, IndexedSegmentPropertySourceParameters, MeshSourceParameters, MultiscaleMeshSourceParameters, ShardingHashFunction, ShardingParameters, SkeletonSourceParameters, VolumeChunkEncoding, VolumeChunkSourceParameters} from 'neuroglancer/datasource/precomputed/base';
-import {assignMeshFragmentData, assignMultiscaleMeshFragmentData, computeOctreeChildOffsets, decodeJsonManifestChunk, decodeTriangleVertexPositionsAndIndices, FragmentChunk, generateHigherOctreeLevel, ManifestChunk, MeshSource, MultiscaleFragmentChunk, MultiscaleManifestChunk, MultiscaleMeshSource} from 'neuroglancer/mesh/backend';
+import {assignMeshFragmentData, assignMultiscaleMeshFragmentData, computeOctreeChildOffsets, decodeJsonManifestChunk, decodeTriangleVertexPositionsAndIndices, decodeTriangleVertexPositionsAndIndicesAndColor, FragmentChunk, generateHigherOctreeLevel, ManifestChunk, MeshSource, MultiscaleFragmentChunk, MultiscaleManifestChunk, MultiscaleMeshSource} from 'neuroglancer/mesh/backend';
 import {IndexedSegmentPropertySourceBackend} from 'neuroglancer/segmentation_display_state/backend';
 import {SkeletonChunk, SkeletonSource} from 'neuroglancer/skeleton/backend';
 import {decodeSkeletonChunk} from 'neuroglancer/skeleton/decode_precomputed_skeleton';
@@ -318,7 +318,7 @@ chunkDecoders.set(VolumeChunkEncoding.PNG, decodePngChunk);
 }
 
 export function decodeManifestChunk(chunk: ManifestChunk, response: any) {
-  return decodeJsonManifestChunk(chunk, response, 'fragments');
+  return decodeJsonManifestChunk(chunk, response, 'fragments', 'customColor');
 }
 
 export function decodeFragmentChunk(chunk: FragmentChunk, response: ArrayBuffer) {
@@ -326,6 +326,10 @@ export function decodeFragmentChunk(chunk: FragmentChunk, response: ArrayBuffer)
   let numVertices = dv.getUint32(0, true);
   assignMeshFragmentData(
       chunk,
+      chunk.manifestChunk?.customColor ? 
+      decodeTriangleVertexPositionsAndIndicesAndColor(
+          response, Endianness.LITTLE, /*vertexByteOffset=*/ 4, numVertices)
+      : 
       decodeTriangleVertexPositionsAndIndices(
           response, Endianness.LITTLE, /*vertexByteOffset=*/ 4, numVertices));
 }
@@ -655,14 +659,14 @@ function parseAnnotations(
   }
   const idOffset = 8 + numBytes * countLow;
   const id = new Uint64();
-  const ids = new Array<string>(countLow);
+  const ids = new Array<string>(countLow); 
   for (let i = 0; i < countLow; ++i) {
     id.low = dv.getUint32(idOffset + i * 8, /*littleEndian=*/ true);
     id.high = dv.getUint32(idOffset + i * 8 + 4, /*littleEndian=*/ true);
     ids[i] = id.toString();
   }
   const geometryData = new AnnotationGeometryData();
-  const origData = new Uint8Array(buffer, 8, numBytes * countLow);
+  const origData = new Uint8Array(buffer, 8, numBytes * countLow); 
   let data: Uint8Array;
   const {propertyGroupBytes} = propertySerializer;
   if (propertyGroupBytes.length > 1) {

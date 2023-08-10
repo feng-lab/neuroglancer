@@ -189,7 +189,7 @@ highp vec3 getVertexColor() {
   bind(_gl: GL, shader: ShaderProgram, fragmentChunk: FragmentChunk|MultiscaleFragmentChunk) {
     fragmentChunk.colorsBuffer.bindToVertexAttrib(
         shader.attribute('aVertexColor'),
-        /*components=*/ 3, WebGL2RenderingContext.UNSIGNED_BYTE, /* normalized=*/ true);
+        /*components=*/ 3, WebGL2RenderingContext.FLOAT, /* normalized=*/ true);
   },
   endLayer: (gl: GL, shader: ShaderProgram) => {
     gl.disableVertexAttribArray(shader.attribute('aVertexColor'));
@@ -582,7 +582,7 @@ export class FragmentChunk extends Chunk {
   indexBuffer: Buffer;
   normalBuffer: Buffer;
   colorsBuffer: Buffer;
-  meshData: EncodedMeshData & {colors?: Uint8Array}; 
+  meshData: EncodedMeshData & {colors?: Float32Array}; 
 
   constructor(source: FragmentSource, x: any) {
     super(source);
@@ -896,7 +896,7 @@ export class MultiscaleManifestChunk extends Chunk {
 }
 
 export class MultiscaleFragmentChunk extends Chunk {
-  meshData: EncodedMeshData&{subChunkOffsets: Uint32Array, colors?: Uint8Array};
+  meshData: EncodedMeshData&{subChunkOffsets: Uint32Array, colors?: Float32Array};
   source: MultiscaleFragmentSource;
   vertexBuffer: Buffer;
   indexBuffer: Buffer;

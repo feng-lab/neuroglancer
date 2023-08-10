@@ -32,7 +32,7 @@ export interface EncodedMeshData {
 }
 
 export interface EncodedMeshDataWithColor extends EncodedMeshData {
-  colors: Uint8Array;
+  colors: Float32Array;
 }
 
 export interface MultiscaleFragmentFormat {
