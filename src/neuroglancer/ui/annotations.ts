@@ -128,6 +128,9 @@ function getCenterPosition(center: Float32Array, annotation: Annotation) {
     case AnnotationType.POINT:
       center.set(annotation.point);
       break;
+    case AnnotationType.SPHERE:
+      center.set(annotation.center);
+      break;
     case AnnotationType.ELLIPSOID:
       center.set(annotation.center);
       break;
