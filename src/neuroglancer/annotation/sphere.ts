@@ -25,6 +25,7 @@ import {defineVectorArrayVertexShaderInput} from 'neuroglancer/webgl/shader_lib'
 import { AtlasSphereRenderHelper } from '../webgl/atlasSpheres';
 import { mat4 } from '../util/geom';
 import { defineLightingShader, setLightingShader } from '../webgl/lighting';
+import { PerspectiveViewRenderContext } from '../perspective_view/render_layer';
 
 class RenderHelper extends AnnotationRenderHelper {
   private sphereRenderHelper = this.registerDisposer(new AtlasSphereRenderHelper(this.gl));
@@ -53,6 +54,7 @@ void setSphereColor(vec4 color) {
 ng_sphereRadius = 0.001 + uRadiusCoefficient;
 ng_sphereRadiusScale = 1.0;
 float modelPosition[${rank}] = getVertexPosition0();
+${this.invokeRadiusCode}
 ${this.invokeUserMain}
 ${this.invokeColorCode}
 emitSphere(uProjection, uView, uModel, ng_sphereRadius * ng_sphereRadiusScale, modelPosition, uBoxCorrection);
@@ -102,6 +104,14 @@ emit(color, vPickID);
     ` : "";
   }
 
+  get invokeRadiusCode() {
+    return this.isInvokePropertyCode("sphereRadius") ?
+    `
+      setSphereRadius(a_prop_sphereRadius);
+    `: "";
+  }
+
+
   private makeShaderGetter = (extraDim: number) => 
       this.getDependentShader(`annotation/sphere:${extraDim}d`, (builder: ShaderBuilder) => {
         //builder.addFragmentCode(`
@@ -113,6 +123,7 @@ emit(color, vPickID);
         builder.addUniform('highp mat4', 'uView');
         builder.addUniform('highp mat4', 'uModel');
         builder.addUniform('highp float', 'uRadiusCoefficient');
+        builder.addUniform('highp float', 'uRadiusScale');
         this.defineShader(builder);
         this.defineFragment(builder);
       });
@@ -120,7 +131,7 @@ emit(color, vPickID);
   enable(
       shaderGetter: AnnotationShaderGetter, context: AnnotationRenderContext,
       callback: (shader: ShaderProgram) => void) {
-    this.shaderControlState.builderState.value.referencedProperties = ["sphereColor"];
+    this.shaderControlState.builderState.value.referencedProperties = ["sphereColor", "sphereRadius"];
     super.enable(shaderGetter, context, shader => {
       const binder = shader.vertexShaderInputBinders['VertexPosition'];
       binder.enable(1);
@@ -192,7 +203,10 @@ emit(color, vPickID);
         shader.uniform('uBoxCorrection'), 
         baseFactor * baseFactor * 1.66
       );
-      console.log('pq basefactor', baseFactor);
+      if (!this.targetIsSliceView) {
+        const renderContext = context.renderContext as PerspectiveViewRenderContext;
+        gl.uniform1f(shader.uniform("uRadiusScale"), 1.0/renderContext.perspectiveNavigationState.zoomFactor.value);
+      }
       const ortho = this.targetIsSliceView ? 1.0 : 0.0;
       gl.uniform1f(shader.uniform("uOrtho"), ortho);
       setLightingShader(shader, true);

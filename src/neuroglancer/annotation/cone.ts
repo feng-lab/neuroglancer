@@ -87,6 +87,21 @@ void setConeTopRadius(float topRadius) {
     return code;
   }
 
+  get invokeRadiusCode() {
+    let code = "";
+    if(this.isInvokePropertyCode("coneBaseRadius")) {
+      code += `
+        setConeBaseRadius(a_prop_coneBaseRadius);
+      `
+    }
+    if(this.isInvokePropertyCode("coneTopRadius")) {
+      code += `
+        setConeBaseRadius(a_prop_coneTopRadius);
+      `
+    }
+    return code;
+  }
+
   private shaderGetter =
       this.getDependentShader('annotation/cone', (builder: ShaderBuilder) => {
         defineLightingShader(builder);
@@ -107,6 +122,7 @@ void setConeTopRadius(float topRadius) {
         builder.setVertexMain(`
           vBaseRadius = aCenterAndRadius0.w;
           vTopRadius = aCenterAndRadius1.w;
+          ${this.invokeRadiusCode}
           ${this.invokeUserMain}
           ${this.invokeColorCode}
           emitCone(vBaseRadius, vTopRadius, aCenterAndRadius0, aCenterAndRadius1);
@@ -121,7 +137,7 @@ void setConeTopRadius(float topRadius) {
   enable(
       shaderGetter: AnnotationShaderGetter, context: AnnotationRenderContext,
       callback: (shader: ShaderProgram) => void) {
-    this.shaderControlState.builderState.value.referencedProperties = ["coneColor", "coneTopColor", "coneBaseColor"];
+    this.shaderControlState.builderState.value.referencedProperties = ["coneColor", "coneTopColor", "coneBaseColor", "coneBaseRadius", "coneTopRadius"];
     super.enable(shaderGetter, context, shader => {
       const binder = shader.vertexShaderInputBinders['CenterAndRadius'];
       binder.enable(1);

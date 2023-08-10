@@ -25,6 +25,7 @@ import {defineLineShader, drawLines, initializeLineShader} from 'neuroglancer/we
 import {ShaderBuilder, ShaderProgram} from 'neuroglancer/webgl/shader';
 import {defineVectorArrayVertexShaderInput} from 'neuroglancer/webgl/shader_lib';
 import {defineVertexId, VertexIdHelper} from 'neuroglancer/webgl/vertex_id';
+import { PerspectiveViewRenderContext } from '../perspective_view/render_layer';
 
 class RenderHelper extends AnnotationRenderHelper {
   private defineShaderCommon(builder: ShaderBuilder) {
@@ -60,6 +61,7 @@ if (clipCoefficient == 0.0) {
   gl_Position = vec4(2.0, 0.0, 0.0, 1.0);
   return;
 }
+${this.invokeRadiusCode}
 ${this.invokeUserMain}
 ${this.invokeColorCode}
 vColor.a *= clipCoefficient;
@@ -76,11 +78,19 @@ ${this.setPartIndex(builder)};
     ` : "";
   }
 
+  get invokeRadiusCode() {
+    return this.isInvokePropertyCode("pointRadius")?
+    `
+      setPointMarkerSize(a_prop_pointRadius);
+    `: "";
+  }
+
   private shaderGetter3d =
       this.getDependentShader('annotation/point:3d', (builder: ShaderBuilder) => {
         defineVertexId(builder);
         defineCircleShader(builder, /*crossSectionFade=*/ this.targetIsSliceView);
         this.defineShaderCommon(builder);
+        builder.addUniform('highp float', 'uScale');
         builder.addVertexMain(`
 emitCircle(uModelViewProjection *
            vec4(projectModelVectorToSubspace(modelPosition), 1.0), ng_markerDiameter, ng_markerBorderWidth);
@@ -146,7 +156,7 @@ emitAnnotation(vec4(color.rgb, color.a * ${this.getCrossSectionFadeFactor()}));
   enable(
       shaderGetter: AnnotationShaderGetter, context: AnnotationRenderContext,
       callback: (shader: ShaderProgram) => void) {
-    this.shaderControlState.builderState.value.referencedProperties = ["pointColor"];
+    this.shaderControlState.builderState.value.referencedProperties = ["pointColor", "pointRadius"];
     super.enable(shaderGetter, context, shader => {
       const binder = shader.vertexShaderInputBinders['VertexPosition'];
       binder.enable(1);
@@ -167,6 +177,11 @@ emitAnnotation(vec4(color.rgb, color.a * ${this.getCrossSectionFadeFactor()}));
         this.enable(this.shaderGetter3d, context, shader => {
           initializeCircleShader(
               shader, context.renderContext.projectionParameters, {featherWidthInPixels: 1});
+        if (!this.targetIsSliceView) {
+          const renderContext = context.renderContext as PerspectiveViewRenderContext;
+          const windowHeight = window.innerHeight;
+          shader.gl.uniform1f(shader.uniform("uScale"), windowHeight / 100.0 /renderContext.perspectiveNavigationState.zoomFactor.value);
+        }
           drawCircles(shader.gl, 1, context.count);
         });
         break;
