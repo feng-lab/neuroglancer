@@ -47,7 +47,7 @@ import {Uint64Set} from 'neuroglancer/uint64_set';
 import {packColor, parseRGBColorSpecification, serializeColor, TrackableOptionalRGB, unpackRGB} from 'neuroglancer/util/color';
 import {Borrowed, Owned, RefCounted} from 'neuroglancer/util/disposable';
 import {vec3, vec4} from 'neuroglancer/util/geom';
-import {parseArray, verifyBoolean, verifyFiniteNonNegativeFloat, verifyObjectAsMap, verifyOptionalObjectProperty, verifyString} from 'neuroglancer/util/json';
+import {parseArray, verifyFiniteNonNegativeFloat, verifyObjectAsMap, verifyOptionalObjectProperty, verifyString} from 'neuroglancer/util/json';
 import {Signal} from 'neuroglancer/util/signal';
 import {Uint64} from 'neuroglancer/util/uint64';
 import {makeWatchableShaderError} from 'neuroglancer/webgl/dynamic_shader';
@@ -402,7 +402,7 @@ export class SegmentationUserLayer extends Base {
   hasSegmentColor: Function; 
   deleteSegmentColor: Function; 
   getSegmentColor: Function;
-  disableResponseDblclick0Event: boolean | undefined;
+  disableResponseDblclick0Event = new TrackableBoolean(false);
 
   sliceViewRenderScaleHistogram = new RenderScaleHistogram();
   sliceViewRenderScaleTarget = trackableRenderScaleTarget(1);
@@ -473,6 +473,7 @@ export class SegmentationUserLayer extends Base {
     this.displayState.linkedSegmentationGroup.changed.add(
         () => this.updateDataSubsourceActivations());
     this.displayState.removeOctant.changed.add(this.specificationChanged.dispatch);
+    this.disableResponseDblclick0Event.changed.add(this.specificationChanged.dispatch);
     this.tabs.add(
         'rendering', {label: 'Render', order: -100, getter: () => new DisplayOptionsTab(this)});
     this.tabs.add(
@@ -691,7 +692,7 @@ export class SegmentationUserLayer extends Base {
     }
     this.displayState.segmentationGroupState.value.restoreState(specification);
     this.displayState.segmentationColorGroupState.value.restoreState(specification);
-    this.disableResponseDblclick0Event = verifyOptionalObjectProperty(specification, DISABLE_RESPONSE_DBLCLICK0_EVENT, verifyBoolean);
+    this.disableResponseDblclick0Event.restoreState(specification[DISABLE_RESPONSE_DBLCLICK0_EVENT]);
   }
 
   toJSON() {
@@ -709,6 +710,7 @@ export class SegmentationUserLayer extends Base {
     x[MESH_RENDER_SCALE_JSON_KEY] = this.displayState.renderScaleTarget.toJSON();
     x[CROSS_SECTION_RENDER_SCALE_JSON_KEY] = this.sliceViewRenderScaleTarget.toJSON();
     x[REMOVE_OCTANT_KEY] = this.displayState.removeOctant.toJSON();
+    x[DISABLE_RESPONSE_DBLCLICK0_EVENT] = this.disableResponseDblclick0Event.toJSON();
 
     const {linkedSegmentationGroup, linkedSegmentationColorGroup} = this.displayState;
     x[LINKED_SEGMENTATION_GROUP_JSON_KEY] = linkedSegmentationGroup.toJSON();
@@ -746,7 +748,7 @@ export class SegmentationUserLayer extends Base {
       }
       case 'select': {
         if (!this.pick.value) break;
-        if (this.disableResponseDblclick0Event) break;
+        if (this.disableResponseDblclick0Event.value) break;
         const {segmentSelectionState} = this.displayState;
         if (segmentSelectionState.hasSelectedSegment) {
           const segment = segmentSelectionState.selectedSegment;
