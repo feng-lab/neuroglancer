@@ -272,7 +272,8 @@ export class BaseFourPanelLayout extends RefCounted {
       ...getCommonPerspectiveViewerState(container),
       showSliceViews: viewer.showPerspectiveSliceViews,
       showSliceViewsCheckbox: true,
-      slicesNavigationState: viewer.navigationState
+      slicesNavigationState: viewer.navigationState,
+      removeMeshFraction: 8
     };
 
     this.sliceViewerState = {
@@ -491,7 +492,8 @@ export class SliceViewPerspectiveTwoPanelLayout extends RefCounted {
       ...getCommonPerspectiveViewerState(container),
       showSliceViews: viewer.showPerspectiveSliceViews,
       showSliceViewsCheckbox: true,
-      //slicesNavigationState: viewer.navigationState
+      slicesNavigationState: sliceView.navigationState,
+      removeMeshFraction: 2
     };
 
     const sliceViewerState = {
@@ -553,20 +555,29 @@ export class SinglePanelLayout extends RefCounted {
 }
 
 export class SinglePerspectiveLayout extends RefCounted {
+  protected sliceViews: Map<NamedAxes, SliceView>;
   constructor(
       public container: DataPanelLayoutContainer, public rootElement: HTMLElement,
       public viewer: ViewerUIState, crossSections: Borrowed<CrossSectionSpecificationMap>) {
     super();
     let perspectiveViewerState = {
       ...getCommonPerspectiveViewerState(container),
-      showSliceViews: new TrackableBoolean(false, false),
-      //slicesNavigationState: viewer.navigationState
+      showSliceViews: viewer.showPerspectiveSliceViews,
+      showSliceViewsCheckbox: true,
+      slicesNavigationState: viewer.navigationState,
+      removeMeshFraction: 8
     };
+
+    this.sliceViews = makeOrthogonalSliceViews(viewer);
+
 
 
     L.box('row', [L.withFlex(1, element => {
             const panel = this.registerDisposer(
                 new PerspectivePanel(viewer.display, element, perspectiveViewerState));
+            for (let sliceView of this.sliceViews.values()) {
+              panel.sliceViews.set(sliceView.addRef(), false);
+            }
             addUnconditionalSliceViews(viewer, panel, crossSections);
             addDisplayDimensionsWidget(this, panel);
             registerRelatedLayouts(this, panel, ['4panel']);
@@ -822,6 +833,7 @@ export class DataPanelLayoutContainer extends RefCounted {
     // Ensure the layout is updated before drawing begins to avoid flicker.
     this.registerDisposer(
         this.viewer.display.updateStarted.add(() => scheduleUpdateLayout.flush()));
+    console.log(this.viewer)
     scheduleUpdateLayout();
   }
   get changed() {

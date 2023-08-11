@@ -48,6 +48,8 @@ export interface PerspectiveViewRenderContext extends PerspectiveViewReadyRender
   slicesNavigationState: NavigationState;
   perspectiveNavigationState: NavigationState;
   crossBackgroundColor: vec3;
+  showSliceViews: boolean;
+  removeMeshFraction: number;
 }
 
 export class PerspectiveViewRenderLayer<AttachmentState = unknown> extends

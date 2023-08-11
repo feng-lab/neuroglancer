@@ -71,8 +71,9 @@ function freeGpuMeshData(chunk: FragmentChunk|MultiscaleFragmentChunk) {
 
 export function getValuesForClipping(renderContext: PerspectiveViewRenderContext, removeOctant: boolean) : ValuesForClipping {
   const navState = mat4.create();
-  const { slicesNavigationState, perspectiveNavigationState,  crossBackgroundColor } = renderContext;
-  if(!removeOctant || !slicesNavigationState) {
+  const { slicesNavigationState, perspectiveNavigationState,  crossBackgroundColor, showSliceViews, removeMeshFraction} = renderContext;
+  const remove = removeOctant && showSliceViews;
+  if(!remove) {
     return {
       navState,
       octant: vec4.fromValues(0.0, 0.0, 0.0, 0.0),
@@ -91,8 +92,10 @@ export function getValuesForClipping(renderContext: PerspectiveViewRenderContext
   let resQuat = quat.multiply(quat.create(), navQuat, perspectiveQuat);
   let rot = mat4.fromQuat(mat4.create(), resQuat);
   vec4.transformMat4(octant, octant, rot);
-  octant[0] = octant[0] < pos[0] ? -1.0 : 1.0;
-  octant[1] = octant[1] < pos[1] ? -1.0 : 1.0;
+  const octant0 = removeMeshFraction === 2 ? 0.0 : -1.0;
+  const octant1 = removeMeshFraction === 2 ? 0.0 : -1.0;
+  octant[0] = octant[0] < pos[0] ? octant0 : 1.0;
+  octant[1] = octant[1] < pos[1] ? octant1 : 1.0;
   octant[2] = octant[2] < pos[2] ? -1.0 : 1.0;
   octant[3] = 1.0;//oc
   return {

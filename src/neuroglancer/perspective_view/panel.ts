@@ -52,6 +52,7 @@ export interface PerspectiveViewerState extends RenderedDataViewerState {
   crossSectionBackgroundAlpha: TrackableValue<number>;
   perspectiveViewBackgroundColor: TrackableRGB;
   rpc: RPC;
+  removeMeshFraction: number
 }
 
 export enum OffscreenTextures {
@@ -316,6 +317,9 @@ export class PerspectivePanel extends RenderedDataPanel {
   ensureBoundsUpdated() {
     super.ensureBoundsUpdated();
     this.projectionParameters.setViewport(this.renderViewport);
+    for (const [sliceView] of this.sliceViews) {
+      sliceView.projectionParameters.setViewport(this.renderViewport);
+    }
   }
 
   isReady() {
@@ -547,7 +551,9 @@ export class PerspectivePanel extends RenderedDataPanel {
       frameNumber: this.context.frameNumber,
       slicesNavigationState: (<any>this.viewer).slicesNavigationState,
       perspectiveNavigationState: this.viewer.navigationState,
-      crossBackgroundColor: this.viewer.crossSectionBackgroundColor.value
+      crossBackgroundColor: this.viewer.crossSectionBackgroundColor.value,
+      removeMeshFraction: this.viewer.removeMeshFraction,
+      showSliceViews: this.viewer.showSliceViews.value
     };
 
     mat4.copy(pickingData.invTransform, projectionParameters.invViewProjectionMat);
