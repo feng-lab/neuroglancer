@@ -65,6 +65,7 @@ export interface LayerGroupViewerState {
   crossSectionBackgroundAlpha: TrackableValue<number>;
   sliceViewCrossSectionBgColor: TrackableRGB;
   sliceViewCrossSectionBgAlpha: TrackableValue<number>;
+  sliceViewCoordinate: TrackableValue<string>;
   perspectiveViewBackgroundColor: TrackableRGB;
 }
 
@@ -287,6 +288,10 @@ export class LayerGroupViewer extends RefCounted {
   }
   get sliceViewCrossSectionBgAlpha() {
     return this.viewerState.sliceViewCrossSectionBgAlpha;
+  }
+
+  get sliceViewCoordinate() {
+    return this.viewerState.sliceViewCoordinate;
   }
   get perspectiveViewBackgroundColor() {
     return this.viewerState.perspectiveViewBackgroundColor;

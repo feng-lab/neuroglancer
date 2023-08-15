@@ -49,6 +49,7 @@ export interface SliceViewViewerState {
   wireFrame: WatchableValueInterface<boolean>;
   sliceViewCrossSectionBgColor: TrackableRGB;
   sliceViewCrossSectionBgAlpha: TrackableValue<number>;
+  sliceViewCoordinate: TrackableValue<string>;
 }
 
 export class InputEventBindings {
@@ -87,6 +88,12 @@ const AXES_RELATIVE_ORIENTATION = new Map<NamedAxes, quat|undefined>([
   ['yz', quat.rotateY(quat.create(), quat.create(), Math.PI / 2)],
 ]);
 
+const AXES_RELATIVE_ORIENTATION_ANATOMY = new Map<NamedAxes, quat|undefined>([
+['xy', quat.rotateZ(quat.create(), quat.create(), Math.PI)],
+['xz', quat.rotateX(quat.create(), quat.rotateY(quat.create(), quat.create(), Math.PI), Math.PI/2)],
+['yz', quat.rotateY(quat.create(), quat.rotateX(quat.create(), quat.create(), -Math.PI/2), Math.PI / 2)],
+]);
+
 const oneSquareSymbol = '◻';
 
 const LAYOUT_SYMBOLS = new Map<string, string>([
@@ -113,7 +120,9 @@ export function makeSliceView(viewerState: SliceViewViewerState, baseToSelf?: qu
 }
 
 export function makeNamedSliceView(viewerState: SliceViewViewerState, axes: NamedAxes) {
-  return makeSliceView(viewerState, AXES_RELATIVE_ORIENTATION.get(axes)!);
+  const axes_relative_orientation_map = viewerState.sliceViewCoordinate.value === "anatomy" ? 
+    AXES_RELATIVE_ORIENTATION_ANATOMY : AXES_RELATIVE_ORIENTATION;
+  return makeSliceView(viewerState, axes_relative_orientation_map.get(axes)!);
 }
 
 export function makeOrthogonalSliceViews(viewerState: SliceViewViewerState) {
@@ -159,7 +168,8 @@ function getCommonSliceViewerState(viewer: ViewerUIState) {
     navigationState: viewer.navigationState,
     inputEventMap: viewer.inputEventBindings.sliceView,
     sliceViewCrossSectionBgColor: viewer.sliceViewCrossSectionBgColor,
-    sliceViewCrossSectionBgAlpha: viewer.sliceViewCrossSectionBgAlpha
+    sliceViewCrossSectionBgAlpha: viewer.sliceViewCrossSectionBgAlpha,
+    sliceViewCoordinate: viewer.sliceViewCoordinate
   };
 }
 

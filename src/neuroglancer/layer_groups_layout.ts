@@ -324,6 +324,7 @@ function getCommonViewerState(viewer: Viewer) {
     crossSectionBackgroundAlpha: viewer.crossSectionBackgroundAlpha,
     sliceViewCrossSectionBgColor: viewer.sliceViewCrossSectionBgColor,
     sliceViewCrossSectionBgAlpha: viewer.sliceViewCrossSectionBgAlpha,
+    sliceViewCoordinate: viewer.sliceViewCoordinate,
     perspectiveViewBackgroundColor: viewer.perspectiveViewBackgroundColor,
   };
 }

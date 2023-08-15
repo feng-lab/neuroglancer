@@ -207,6 +207,7 @@ class TrackableViewerState extends CompoundTrackable {
     this.add('projectionBackgroundColor', viewer.perspectiveViewBackgroundColor);
     this.add('sliceViewCrossSectionBgColor', viewer.sliceViewCrossSectionBgColor);
     this.add('sliceViewCrossSectionBgAlpha', viewer.sliceViewCrossSectionBgAlpha);
+    this.add('sliceViewCoordinate', viewer.sliceViewCoordinate );
     this.add('layout', viewer.layout);
     this.add('statistics', viewer.statisticsDisplayState);
     this.add('helpPanel', viewer.helpPanelState);
@@ -297,6 +298,7 @@ export class Viewer extends RefCounted implements ViewerState {
   crossSectionBackgroundAlpha = trackableAlphaValue(1.0);
   perspectiveViewBackgroundColor = new TrackableRGB(vec3.fromValues(0, 0, 0));
   sliceViewCrossSectionBgColor = new TrackableRGB(vec3.fromValues(-1, -1, -1));
+  sliceViewCoordinate = new TrackableValue<string>("neuroglancer", verifyString);
   sliceViewCrossSectionBgAlpha = trackableAlphaValue(1.0);
   scaleBarOptions = new TrackableScaleBarOptions();
   partialViewport = new TrackableWindowedViewport();

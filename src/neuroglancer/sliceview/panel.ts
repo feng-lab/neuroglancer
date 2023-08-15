@@ -40,6 +40,7 @@ export interface SliceViewerState extends RenderedDataViewerState {
   crossSectionBackgroundColor: TrackableRGB;
   sliceViewCrossSectionBgColor: TrackableRGB;
   sliceViewCrossSectionBgAlpha: TrackableValue<number>;
+  sliceViewCoordinate: TrackableValue<string>;
 }
 
 export enum OffscreenTextures {
@@ -164,6 +165,8 @@ export class SliceViewPanel extends RenderedDataPanel {
         viewer.sliceViewCrossSectionBgColor.changed.add(() => this.scheduleRedraw()));
     this.registerDisposer(
         viewer.sliceViewCrossSectionBgAlpha.changed.add(() => this.scheduleRedraw()));
+    this.registerDisposer(
+      viewer.sliceViewCoordinate.changed.add(() => this.scheduleRedraw()));
     this.registerDisposer(sliceView.visibility.add(this.visibility));
     this.registerDisposer(sliceView.viewChanged.add(() => {
       if (this.visible) {
