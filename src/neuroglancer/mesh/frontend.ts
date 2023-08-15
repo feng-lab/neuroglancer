@@ -356,7 +356,7 @@ float lightingFactor = abs(dot(normal, uLightDirection.xyz)) + uLightDirection.w
 vec3 tempColor = getVertexColor();
 //vColor = vec4(lightingFactor * uColor.rgb, uColor.a);
 vColor = vec4(lightingFactor * tempColor.rgb, uColor.a);
-if (uColor.a < 1.0) {
+if (uColor.a <= 1.0) {
 	vBackFaceColor = vec4(vColor.rgb, 0.0);
 } else {
 	vBackFaceColor = uBackFaceColor;
