@@ -7,6 +7,7 @@ import 'neuroglancer/datasource/dvid/register_credentials_provider';
 import 'neuroglancer/datasource/dvid/register_default';
 import 'neuroglancer/datasource/brainmaps/register_default';
 import 'neuroglancer/datasource/precomputed/register_default';
+import 'neuroglancer/datasource/nifti/register_default';
 import 'neuroglancer/segmentation_user_layer';
 import 'neuroglancer/image_user_layer';
 import 'neuroglancer/annotation/user_layer';

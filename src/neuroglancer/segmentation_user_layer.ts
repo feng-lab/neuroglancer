@@ -408,7 +408,7 @@ export class SegmentationUserLayer extends Base {
   sliceViewRenderScaleTarget = trackableRenderScaleTarget(1);
 
   graphConnection = new WatchableValue<SegmentationGraphSourceConnection|undefined>(undefined);
-  toggleSegment = new WatchableValue<string | undefined>(undefined); 
+  toggleSegment = new WatchableValue<Object| undefined>(undefined); 
 
 
   bindSegmentListWidth(element: HTMLElement) {
@@ -760,7 +760,8 @@ export class SegmentationUserLayer extends Base {
           context.defer(() => {
             if (context.segmentationToggleSegmentState === newVisible) {
               visibleSegments.set(segment, newVisible);
-              this.toggleSegment.value = segment.toJSON();
+              this.toggleSegment.value = { segment: segment.toJSON(), visible: newVisible};
+              console.log(this.toggleSegment.value)
             }
           });
         }
