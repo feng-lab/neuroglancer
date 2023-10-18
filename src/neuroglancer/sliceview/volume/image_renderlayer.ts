@@ -21,7 +21,7 @@ import {TrackableAlphaValue} from 'neuroglancer/trackable_alpha';
 import {BLEND_FUNCTIONS, BLEND_MODES, TrackableBlendModeValue} from 'neuroglancer/trackable_blend';
 import {WatchableValue} from 'neuroglancer/trackable_value';
 import {glsl_COLORMAPS} from 'neuroglancer/webgl/colormaps';
-import { glsl_hsvToRgb } from 'src/neuroglancer/webgl/shader_lib'; 
+import { glsl_hsvToRgb } from 'neuroglancer/webgl/shader_lib'; 
 import {makeTrackableFragmentMain, shaderCodeWithLineDirective, WatchableShaderError} from 'neuroglancer/webgl/dynamic_shader';
 import {ShaderBuilder, ShaderProgram} from 'neuroglancer/webgl/shader';
 import {addControlsToBuilder, getFallbackBuilderState, parseShaderUiControls, setControlsInShader, ShaderControlsBuilderState, ShaderControlState} from 'neuroglancer/webgl/shader_ui_controls';

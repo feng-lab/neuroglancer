@@ -2,7 +2,7 @@
   "name": "@feng-lab/neuroglancer",
   "description": "Visualization tool for 3-D volumetric data.",
   "license": "Apache-2.0",
-  "version": "0.0.0",
+  "version": "1.0.1",
   "main": "dist/module/main_module.js",
   "files": [
     "dist/module"
