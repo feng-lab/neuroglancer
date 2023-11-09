@@ -52,7 +52,8 @@ export enum AnnotationType {
   AXIS_ALIGNED_BOUNDING_BOX,
   ELLIPSOID,
   SPHERE,
-  CONE
+  CONE,
+  ATLAS_ELLIPSOID
 }
 
 export const annotationTypes = [
@@ -61,7 +62,8 @@ export const annotationTypes = [
   AnnotationType.AXIS_ALIGNED_BOUNDING_BOX,
   AnnotationType.ELLIPSOID,
   AnnotationType.SPHERE,
-  AnnotationType.CONE
+  AnnotationType.CONE,
+  AnnotationType.ATLAS_ELLIPSOID
 ];
 
 export interface AnnotationPropertySpecBase {
@@ -553,6 +555,14 @@ export interface Ellipsoid extends AnnotationBase {
   type: AnnotationType.ELLIPSOID;
 }
 
+export interface AtlasEllipsoid extends AnnotationBase {
+  center: Float32Array;
+  xVector: Float32Array;
+  yVector: Float32Array;
+  zVector: Float32Array;
+  type: AnnotationType.ATLAS_ELLIPSOID;
+}
+
 export interface Sphere extends AnnotationBase {
   center: Float32Array;
   type: AnnotationType.SPHERE;
@@ -566,7 +576,7 @@ export interface Cone extends AnnotationBase {
   type: AnnotationType.CONE;
 }
 
-export type Annotation = Line|Point|AxisAlignedBoundingBox|Ellipsoid|Sphere|Cone;
+export type Annotation = Line|Point|AxisAlignedBoundingBox|Ellipsoid|Sphere|Cone|AtlasEllipsoid;
 
 export interface AnnotationTypeHandler<T extends Annotation = Annotation> {
   icon: string;
@@ -599,6 +609,17 @@ function serializeTwoFloatVectors(
   return offset;
 }
 
+function serializeFourFloatVectors(
+    buffer: DataView, offset: number, isLittleEndian: boolean, rank: number, vecA: Float32Array,
+    vecB: Float32Array, vecC: Float32Array, vecD: Float32Array) {
+  offset = serializeFloatVector(buffer, offset, isLittleEndian, rank, vecA);
+  offset = serializeFloatVector(buffer, offset, isLittleEndian, rank, vecB);
+  offset = serializeFloatVector(buffer, offset, isLittleEndian, rank, vecC);
+  offset = serializeFloatVector(buffer, offset, isLittleEndian, rank, vecD);
+  return offset;
+}
+
+
 function deserializeFloatVector(
     buffer: DataView, offset: number, isLittleEndian: boolean, rank: number, vec: Float32Array) {
   for (let i = 0; i < rank; ++i) {
@@ -615,6 +636,17 @@ function deserializeTwoFloatVectors(
   offset = deserializeFloatVector(buffer, offset, isLittleEndian, rank, vecB);
   return offset;
 }
+
+function deserializeFourFloatVectors(
+    buffer: DataView, offset: number, isLittleEndian: boolean, rank: number, vecA: Float32Array,
+    vecB: Float32Array, vecC: Float32Array, vecD: Float32Array) {
+  offset = deserializeFloatVector(buffer, offset, isLittleEndian, rank, vecA);
+  offset = deserializeFloatVector(buffer, offset, isLittleEndian, rank, vecB);
+  offset = deserializeFloatVector(buffer, offset, isLittleEndian, rank, vecC);
+  offset = deserializeFloatVector(buffer, offset, isLittleEndian, rank, vecD);
+  return offset;
+}
+
 
 export const annotationTypeHandlers: Record<AnnotationType, AnnotationTypeHandler> = {
   [AnnotationType.LINE]: {
@@ -751,6 +783,55 @@ export const annotationTypeHandlers: Record<AnnotationType, AnnotationTypeHandle
     visitGeometry(annotation: Ellipsoid, callback) {
       callback(annotation.center, false);
       callback(annotation.radii, true);
+    },
+  },
+  [AnnotationType.ATLAS_ELLIPSOID]: {
+    icon: '◌',
+    description: 'Atlas Ellipsoid',
+    toJSON: (annotation: AtlasEllipsoid) => {
+      return {
+        center: Array.from(annotation.center),
+        xVector: Array.from(annotation.xVector),
+        yVector: Array.from(annotation.yVector),
+        zVector: Array.from(annotation.zVector)
+      };
+    },
+    restoreState: (annotation: AtlasEllipsoid, obj: any, rank: number) => {
+      annotation.center = verifyObjectProperty(
+          obj, 'center', x => parseFixedLengthArray(new Float32Array(rank), x, verifyFiniteFloat));
+      annotation.xVector = verifyObjectProperty(
+          obj, 'xVector',
+          x => parseFixedLengthArray(new Float32Array(rank), x, verifyFiniteFloat));
+      annotation.yVector = verifyObjectProperty(
+          obj, 'yVector',
+          y => parseFixedLengthArray(new Float32Array(rank), y, verifyFiniteFloat));
+      annotation.zVector = verifyObjectProperty(
+          obj, 'zVector',
+          z => parseFixedLengthArray(new Float32Array(rank), z, verifyFiniteFloat));
+    },
+    serializedBytes: rank => 4 * 4 * rank,
+    serialize(
+        buffer: DataView, offset: number, isLittleEndian: boolean, rank: number,
+        annotation: AtlasEllipsoid) {
+      serializeFourFloatVectors(
+          buffer, offset, isLittleEndian, rank, annotation.center, 
+          annotation.xVector, annotation.yVector, annotation.zVector);
+    },
+    deserialize:
+        (buffer: DataView, offset: number, isLittleEndian: boolean, rank: number, id: string):
+            AtlasEllipsoid => {
+              const center = new Float32Array(rank);
+              const xVector = new Float32Array(rank);
+              const yVector = new Float32Array(rank);
+              const zVector = new Float32Array(rank);
+              deserializeFourFloatVectors(buffer, offset, isLittleEndian, rank, center, xVector, yVector, zVector);
+              return {type: AnnotationType.ATLAS_ELLIPSOID, center, xVector, yVector, zVector, id, properties: []};
+            },
+    visitGeometry(annotation: AtlasEllipsoid, callback) {
+      callback(annotation.center, false);
+      callback(annotation.xVector, true);
+      callback(annotation.yVector, true);
+      callback(annotation.zVector, true);
     },
   },
   [AnnotationType.SPHERE]: {
@@ -1120,6 +1201,12 @@ export class LocalAnnotationSource extends AnnotationSource {
           annotation.center = mapVector(annotation.center);
           annotation.radii = mapVector(annotation.radii);
           break;
+        case AnnotationType.ATLAS_ELLIPSOID:
+          annotation.center = mapVector(annotation.center);
+          annotation.xVector= mapVector(annotation.xVector);
+          annotation.yVector= mapVector(annotation.yVector);
+          annotation.zVector= mapVector(annotation.zVector);
+          break;
         case AnnotationType.CONE: 
           annotation.base = mapVector(annotation.base);
           annotation.axis = mapVector(annotation.axis);
@@ -1205,7 +1292,7 @@ function serializeAnnotations(
 }
 
 export class AnnotationSerializer {
-  annotations: [Point[], Line[], AxisAlignedBoundingBox[], Ellipsoid[], Sphere[], Cone[]] = [[], [], [], [], [], []];
+  annotations: [Point[], Line[], AxisAlignedBoundingBox[], Ellipsoid[], Sphere[], Cone[], AtlasEllipsoid[]] = [[], [], [], [], [], [], []];
   constructor(public propertySerializers: AnnotationPropertySerializer[]) {}
   add(annotation: Annotation) {
     (<Annotation[]>this.annotations[annotation.type]).push(annotation);

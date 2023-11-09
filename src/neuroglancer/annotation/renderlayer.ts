@@ -20,6 +20,7 @@ import 'neuroglancer/annotation/point';
 import 'neuroglancer/annotation/ellipsoid';
 import 'neuroglancer/annotation/sphere';
 import 'neuroglancer/annotation/cone';
+import 'neuroglancer/annotation/atlasEllipsoid';
 
 import {AnnotationBase, AnnotationSerializer, AnnotationSource, annotationTypes, formatAnnotationPropertyValue, SerializedAnnotations} from 'neuroglancer/annotation';
 import {AnnotationLayerState, OptionalSegmentationDisplayState} from 'neuroglancer/annotation/annotation_layer_state';

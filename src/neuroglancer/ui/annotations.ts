@@ -20,7 +20,7 @@
 
 import './annotations.css';
 
-import {Annotation, AnnotationId, AnnotationPropertySerializer, AnnotationReference, AnnotationSource, annotationToJson, AnnotationType, annotationTypeHandlers, AxisAlignedBoundingBox, Cone, Ellipsoid, formatNumericProperty, Line} from 'neuroglancer/annotation';
+import {Annotation, AnnotationId, AnnotationPropertySerializer, AnnotationReference, AnnotationSource, annotationToJson, AnnotationType, annotationTypeHandlers, AtlasEllipsoid, AxisAlignedBoundingBox, Cone, Ellipsoid, formatNumericProperty, Line} from 'neuroglancer/annotation';
 import {AnnotationDisplayState, AnnotationLayerState} from 'neuroglancer/annotation/annotation_layer_state';
 import {MultiscaleAnnotationSource} from 'neuroglancer/annotation/frontend_source';
 import {AnnotationLayer, PerspectiveViewAnnotationLayer, SliceViewAnnotationLayer, SpatiallyIndexedPerspectiveViewAnnotationLayer, SpatiallyIndexedSliceViewAnnotationLayer} from 'neuroglancer/annotation/renderlayer';
@@ -129,9 +129,8 @@ function getCenterPosition(center: Float32Array, annotation: Annotation) {
       center.set(annotation.point);
       break;
     case AnnotationType.SPHERE:
-      center.set(annotation.center);
-      break;
     case AnnotationType.ELLIPSOID:
+    case AnnotationType.ATLAS_ELLIPSOID:
       center.set(annotation.center);
       break;
   }
@@ -336,6 +335,17 @@ export class AnnotationLayerView extends Tab {
       },
     });
     mutableControls.appendChild(ellipsoidButton);
+
+    const atlasEllipsoidButton = makeIcon({
+      text: annotationTypeHandlers[AnnotationType.ATLAS_ELLIPSOID].icon,
+      title: 'Annotate atlas ellipsoid',
+      onClick: () => {
+        this.layer.tool.value = new PlaceAtlasEllipsoidTool(this.layer, {});
+      },
+    });
+    mutableControls.appendChild(atlasEllipsoidButton);
+
+
 
     const sphereButton = makeIcon({
       text: annotationTypeHandlers[AnnotationType.SPHERE].icon,
@@ -836,6 +846,7 @@ const ANNOTATE_POINT_TOOL_ID = 'annotatePoint';
 const ANNOTATE_LINE_TOOL_ID = 'annotateLine';
 const ANNOTATE_BOUNDING_BOX_TOOL_ID = 'annotateBoundingBox';
 const ANNOTATE_ELLIPSOID_TOOL_ID = 'annotateSphere';
+const ANNOTATE_ATLAS_ELLIPSOID_TOOL_ID = 'annotateAtlasEllipsoid';
 const ANNOTATE_SPHERE_TOOL_ID = 'annotateAtlasSphere';
 const ANNOTATE_CONE_TOOL_ID = 'annotateCone';
 
@@ -1121,6 +1132,49 @@ class PlaceEllipsoidTool extends TwoStepAnnotationTool {
   }
 }
 
+class PlaceAtlasEllipsoidTool extends TwoStepAnnotationTool {
+  getInitialAnnotation(mouseState: MouseSelectionState, annotationLayer: AnnotationLayerState):
+      Annotation {
+    const point = getMousePositionInAnnotationCoordinates(mouseState, annotationLayer);
+
+    return <AtlasEllipsoid>{
+      type: AnnotationType.ATLAS_ELLIPSOID,
+      id: '',
+      description: '',
+      segments: getSelectedAssociatedSegments(annotationLayer),
+      center: point,
+      xVector: vec3.fromValues(1, 0, 0),
+      yVector: vec3.fromValues(0, 1, 0),
+      zVector: vec3.fromValues(0, 0, 1),
+      properties: annotationLayer.source.properties.map(x => x.default),
+    };
+  }
+
+  getUpdatedAnnotation(
+      oldAnnotation: AtlasEllipsoid, mouseState: MouseSelectionState,
+      annotationLayer: AnnotationLayerState) {
+    const radii = getMousePositionInAnnotationCoordinates(mouseState, annotationLayer);
+    if (radii === undefined) return oldAnnotation;
+    const center = oldAnnotation.center;
+    const rank = center.length;
+    for (let i = 0; i < rank; ++i) {
+      radii[i] = Math.abs(center[i] - radii[i]);
+    }
+    return <AtlasEllipsoid>{
+      ...oldAnnotation,
+      xVector: radii,
+      yVector: radii,
+      zVector: radii
+    };
+  }
+  get description() {
+    return `annotate atlas ellipsoid`;
+  }
+
+  toJSON() {
+    return ANNOTATE_ATLAS_ELLIPSOID_TOOL_ID;
+  }
+}
 class PlaceConeTool extends TwoStepAnnotationTool {
   getInitialAnnotation(mouseState: MouseSelectionState, annotationLayer: AnnotationLayerState):
       Annotation {
@@ -1179,6 +1233,9 @@ registerLegacyTool(
 registerLegacyTool(
     ANNOTATE_CONE_TOOL_ID,
     (layer, options) => new PlaceConeTool(<UserLayerWithAnnotations>layer, options));
+registerLegacyTool(
+    ANNOTATE_ATLAS_ELLIPSOID_TOOL_ID,
+    (layer, options) => new PlaceAtlasEllipsoidTool(<UserLayerWithAnnotations>layer, options));
 
 const newRelatedSegmentKeyMap = EventActionMap.fromObject({
   'enter': {action: 'commit'},

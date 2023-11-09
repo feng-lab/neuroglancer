@@ -22,10 +22,10 @@ import {AnnotationType, Sphere} from 'neuroglancer/annotation';
 import {AnnotationRenderContext, AnnotationRenderHelper, AnnotationShaderGetter, registerAnnotationTypeRenderHandler} from 'neuroglancer/annotation/type_handler';
 import {ShaderBuilder, ShaderProgram} from 'neuroglancer/webgl/shader';
 import {defineVectorArrayVertexShaderInput} from 'neuroglancer/webgl/shader_lib';
-import { AtlasSphereRenderHelper } from '../webgl/atlasSpheres';
-import { mat4 } from '../util/geom';
-import { defineLightingShader, setLightingShader } from '../webgl/lighting';
-import { PerspectiveViewRenderContext } from '../perspective_view/render_layer';
+import { AtlasSphereRenderHelper } from 'neuroglancer/webgl/atlasSpheres';
+import { mat4 } from 'neuroglancer/util/geom';
+import { defineLightingShader, setLightingShader } from 'neuroglancer/webgl/lighting';
+import { PerspectiveViewRenderContext } from 'neuroglancer/perspective_view/render_layer';
 
 class RenderHelper extends AnnotationRenderHelper {
   private sphereRenderHelper = this.registerDisposer(new AtlasSphereRenderHelper(this.gl));
