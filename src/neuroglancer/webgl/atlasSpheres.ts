@@ -58,7 +58,7 @@ export class AtlasSphereRenderHelper extends RefCounted {
     // =   modelViewMat^{-1}^T * (scalMat^{-1})^T
     builder.addVertexCode(`
 void emitSphere(mat4 projectionMatrix, mat4 viewMatrix, mat4 model, float radius, float modelPosition[3], float boxCorrection) {
-  radius /= uRadiusScale;
+  radius *= uRadiusScale;
   vRadius2 = radius * radius;
   highp vec2 flags = mod(floor(vec2(aFlag/16.0, aFlag)), 16.0);
   highp vec4 attr_specular_shininess = vec4(1.0, 1.0, 1.0, 1.0);
