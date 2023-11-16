@@ -112,7 +112,9 @@ vec4 emitAtlasEllipsoidFragment(mat4 projectionMatrix) {
   vec4 normal4 = transpose(vMatrixInverse) * (xfpp + dist * c3);
   vec3 normalDirection = normalize(normal4.xyz);
   //return apply_lighting_and_fog(vec4(0.5, 0.5, 0.5, 0.5), 1.0, vec4(0.1, 0.1, 0.1, 1.0), vec4(1.0,1.0,1.0,1.0), normalDirection, ipoint, vColor, 1.0);
-  return vec4(1.0, 0.0, 0.0, 0.3);
+  //return apply_lighting_and_fog(vec4(0.2, 0.2, 0.2, 1.0), 100.0, vec4(0.1, 0.1, 0.1, 1.0), vec4(1.0,1.0,1.0,1.0), normalDirection, ipoint, vec4(1.0, 1.0, 0.0, 1.0), 1.0);
+  return apply_lighting_and_fog(vec4(0.2, 0.2, 0.2, 1.0), 100.0, vec4(0.1, 0.1, 0.1, 1.0), vec4(1.0,1.0,1.0,1.0), normalDirection, ipoint, vColor, 1.0);
+  //return vec4(1.0, 0.0, 0.0, 0.3);
 }
     `)
   }

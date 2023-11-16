@@ -347,6 +347,7 @@ void setConeTopColor(vec4 color);
 void setConeColor(vec4 color);
 void setBaseRadius(float baseRadius);
 void setTopRadius(float topRadius);
+void setAtlasEllipsoidColor(vec4 color);
 
 void setEndpointMarkerColor(vec3 startColor, vec3 endColor) {
   setEndpointMarkerColor(vec4(startColor, 1.0), vec4(endColor, 1.0));
@@ -371,6 +372,7 @@ void setColor(vec4 color) {
   setEllipsoidFillColor(vec4(color.rgb, color.a * (PROJECTION_VIEW ? 1.0 : 0.5)));
   setSphereColor(color);
   setConeColor(color);
+  setAtlasEllipsoidColor(color);
 }
 void setEllipsoidFillColor(vec3 color) { setEllipsoidFillColor(vec4(color, 1.0)); }
 

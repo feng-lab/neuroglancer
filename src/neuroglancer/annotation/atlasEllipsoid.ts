@@ -29,6 +29,7 @@ highp float modelXVector[${rank}] = getCenterAndRadiiVector1();
 highp float modelYVector[${rank}] = getCenterAndRadiiVector2();
 highp float modelZVector[${rank}] = getCenterAndRadiiVector3();
 ${this.invokeColorCode}
+${this.invokeUserMain}
 emitAtlasEllipsoid(uProjectionView, uProjectionInv, uView, modelCenter, modelXVector, modelYVector, modelZVector);
 ${this.setPartIndex(builder)};
 
