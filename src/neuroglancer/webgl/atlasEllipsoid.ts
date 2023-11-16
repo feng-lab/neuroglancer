@@ -23,6 +23,7 @@ export class AtlasEllipsoidRenderHelper extends RefCounted {
     builder.addAttribute('highp float', 'aFlag');
     builder.addVarying('highp mat4', 'vMatrixInverse');
     builder.addVarying('highp vec3', 'vPoint');
+    builder.addUniform('highp float', 'uOrtho');
     builder.addVertexCode(`
 void emitAtlasEllipsoid(
   mat4 projectionViewMatrix, 
@@ -76,8 +77,10 @@ void emitAtlasEllipsoid(
     `);
     builder.addFragmentCode(`
 vec4 emitAtlasEllipsoidFragment(mat4 projectionMatrix) {
-  vec3 rayOrigin = vec3(0.0 ,0.0, 0.0);
-  vec3 rayDirection = normalize(vPoint);
+  //vec3 rayOrigin = vec3(0.0 ,0.0, 0.0);
+  //vec3 rayDirection = normalize(vPoint);
+  vec3 rayOrigin = mix(vec3(0.0 ,0.0, 0.0), vPoint, uOrtho);
+  vec3 rayDirection = mix(normalize(vPoint), vec3(0.0, 0.0, -1.0), uOrtho);
 
   vec4 xfpp = vMatrixInverse * vec4(rayOrigin, 1.0);
   vec4 c3 = vMatrixInverse * vec4(rayDirection, 0.0);

@@ -87,6 +87,8 @@ emit(color, vPickID);
       mat4.invert(projectInv, projectionMat);
       gl.uniformMatrix4fv(shader.uniform("uProjectionInv"), false, projectInv);
       setLightingShader(shader, true);
+      const ortho = this.targetIsSliceView ? 1.0 : 0.0;
+      gl.uniform1f(shader.uniform("uOrtho"), ortho);
       this.atlasEllipsoidRenderHelper.draw(shader, context.count);
     })
   }
