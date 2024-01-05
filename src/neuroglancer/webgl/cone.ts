@@ -29,9 +29,9 @@ export function getConeVertexArray(count: number) {
   const result = new Float32Array(totalNum);
   for (let i = 0; i <= count; i++) {
     result[i * 4] = 0;
-    result[i * 4 + 1] = 32;
-    result[i * 4 + 2] = 2;
-    result[i * 4 + 3] = 34;
+    result[i * 4 + 1] = 16;
+    result[i * 4 + 2] = 1;
+    result[i * 4 + 3] = 17;
   }
   return result;
 }
@@ -74,6 +74,7 @@ export class ConeRenderHelper extends RefCounted {
     builder.addVarying("highp vec4", "vTopColor");
 
     //vertex
+    builder.addUniform('highp float', 'uRadiusScale');
     builder.addUniform("highp mat4", "uViewMatrix");
     builder.addUniform("highp mat4", "uProjectionViewMatrix");
     builder.addUniform("highp mat4", "uProjectionMatrixInverse");
@@ -90,10 +91,10 @@ export class ConeRenderHelper extends RefCounted {
 
 
     builder.addVertexCode(`
-    #define vBaseRadius vCombo1.x
-    #define vTopRadius vCombo1.y
-    #define vHeight vCombo1.z
-    #define vInvSqrHeight vCombo1.w
+    #define bradius vCombo1.x
+    #define tradius vCombo1.y
+    #define height vCombo1.z
+    #define inv_sqr_height vCombo1.w
 
     //uniform float uSizeScale = 1.0;
     //uniform mat4 uPosTransform = mat4(1.0);
@@ -108,10 +109,10 @@ export class ConeRenderHelper extends RefCounted {
     //uniform vec4 uMaterialSpecular = vec4(1., 1., 1., 1.);
     //uniform float uMaterialShininess = 100.;
 
-    #define vBaseRadius vCombo1.x
-    #define vTopRadius vCombo1.y
-    #define vHeight vCombo1.z
-    #define vInvSqrHeight vCombo1.w
+    #define bradius vCombo1.x
+    #define tradius vCombo1.y
+    #define height vCombo1.z
+    #define inv_sqr_height vCombo1.w
     ${glsl_emitConeFrag}
 
     `)

@@ -26,13 +26,12 @@ import {defineVectorArrayVertexShaderInput} from 'neuroglancer/webgl/shader_lib'
 import { ConeRenderHelper } from '../webgl/cone';
 import { mat3FromMat4 } from 'neuroglancer/util/geom';
 import { defineLightingShader, setLightingShader } from '../webgl/lighting';
+import { PerspectiveViewRenderContext } from 'neuroglancer/perspective_view/render_layer';
 //import { scaleMat3Output } from 'neuroglancer/util/geom';
 
 const FULL_OBJECT_PICK_OFFSET = 0;
 const ENDPOINTS_PICK_OFFSET = FULL_OBJECT_PICK_OFFSET + 1;
 const PICK_IDS_PER_INSTANCE = ENDPOINTS_PICK_OFFSET + 2;
-
-const tempMat4 = mat4.create();
 
 
 class RenderHelper extends AnnotationRenderHelper {
@@ -57,10 +56,10 @@ void setConeColor(vec4 color) {
   vTopColor = color;
 }
 void setConeBaseRadius(float baseRadius) {
-  vBaseRadius = baseRadius;
+  bradius = baseRadius * uRadiusScale;
 }
 void setConeTopRadius(float topRadius) {
-  vTopRadius = topRadius;
+  tradius = topRadius * uRadiusScale;
 }
 `);
 
@@ -120,16 +119,21 @@ void setConeTopRadius(float topRadius) {
           }
         `)
         builder.setVertexMain(`
-          vBaseRadius = aCenterAndRadius0.w;
-          vTopRadius = aCenterAndRadius1.w;
+          // bradius = aCenterAndRadius0.w * uRadiusScale;
+          // tradius = aCenterAndRadius1.w * uRadiusScale;
+          // bradius = 2.0 * uRadiusScale;
+          // tradius = 2.0 * uRadiusScale;
           ${this.invokeRadiusCode}
           ${this.invokeUserMain}
           ${this.invokeColorCode}
-          emitCone(vBaseRadius, vTopRadius, aCenterAndRadius0, aCenterAndRadius1);
+          // emitCone(vBaseRadius, vTopRadius, aCenterAndRadius0, aCenterAndRadius1);
+          emitCone();
           setPartIndex();
         `)
         builder.setFragmentMain(`
-          vec4 fColor = coneFragmentFunc(vBaseRadius, vTopRadius, vInvSqrHeight, vHeight);
+          // vec4 fColor = coneFragmentFunc(vBaseRadius, vTopRadius, vInvSqrHeight, vHeight);
+          // vec4 fColor = coneFragmentFunc(vCombo1.x, vCombo1.y, vCombo1.w, vCombo1.z);
+          vec4 fColor = coneFragmentFunc();
           emitAnnotation(fColor);
         `)
       });
@@ -151,18 +155,35 @@ void setConeTopRadius(float topRadius) {
   draw(context: AnnotationRenderContext) {
     this.enable(this.shaderGetter, context, shader => {
       const {gl} = shader;
-      const { viewMatrix, viewProjectionMat, projectionMat, /*displayDimensionRenderInfo*/ } = context.projectionParameters; 
+      const { viewMatrix, viewProjectionMat, projectionMat, /*displayDimensionRenderInfo*/ baseFactor} = context.projectionParameters; 
+      let tempMat4 = mat4.create();
       const projectionInvMatrix = mat4.invert(tempMat4, projectionMat) ?? mat4.create();
-      gl.uniformMatrix4fv(shader.uniform("uViewMatrix"), false, viewMatrix);
+
+      let pqView: mat4 = mat4.create();
+      let pqViewProj: mat4 = mat4.create();
+      for (let i = 0; i < 3; ++i) {
+        pqView[i] *= baseFactor;
+        pqView[4 + i] *= baseFactor;
+        pqView[8 + i] *= baseFactor; 
+        pqView[12 + i] = context.projectionParameters.globalPosition[i]*(1 - baseFactor);
+        //pqView[12 + i] = 1 -scale;
+      }
+      mat4.multiply(pqView, viewMatrix, pqView);
+      mat4.multiply(pqViewProj, projectionMat, pqView);
+
+      // gl.uniformMatrix4fv(shader.uniform("uViewMatrix"), false, viewMatrix);
+      gl.uniformMatrix4fv(shader.uniform("uViewMatrix"), false, pqView);
       gl.uniformMatrix4fv(shader.uniform("uProjectionMatrix"), false, projectionMat);
-      gl.uniformMatrix4fv(shader.uniform("uProjectionViewMatrix"), false, viewProjectionMat);
+      // gl.uniformMatrix4fv(shader.uniform("uProjectionViewMatrix"), false, viewProjectionMat);
+      gl.uniformMatrix4fv(shader.uniform("uProjectionViewMatrix"), false, pqViewProj);
       gl.uniformMatrix4fv(
         shader.uniform("uProjectionMatrixInverse"), 
         false, 
         projectionInvMatrix
       );
       const tempMat3 = mat3.create();
-      mat3FromMat4(tempMat3, viewMatrix);
+      // mat3FromMat4(tempMat3, viewMatrix);
+      mat3FromMat4(tempMat3, pqView);
       //scaleMat3Output( tempMat3, tempMat3, displayDimensionRenderInfo.canonicalVoxelFactors);
       mat3.invert(tempMat3, tempMat3);
       mat3.transpose(tempMat3, tempMat3);
@@ -170,7 +191,23 @@ void setConeTopRadius(float topRadius) {
       const ortho = this.targetIsSliceView ? 1.0 : 0.0;
       gl.uniform1f(shader.uniform("uOrtho"), ortho);
       gl.uniform1f(shader.uniform("uAlpha"), 1.0);
-      gl.uniformMatrix4fv(shader.uniform('uModelMatrix'), /*transpose=*/ false, context.renderSubspaceModelMatrix);
+
+      let pqModel:mat4=mat4.create();
+      for (let i = 0; i < 3; ++i) {
+          pqModel[i] /= baseFactor;
+          pqModel[4 + i] /= baseFactor;
+          pqModel[8 + i] /= baseFactor; 
+          pqModel[12 + i] = context.projectionParameters.globalPosition[i]*(1-1/baseFactor);
+      }
+
+      // gl.uniformMatrix4fv(shader.uniform('uModelMatrix'), /*transpose=*/ false, mat4.multiply(pqModel,pqModel,context.renderSubspaceModelMatrix));
+      gl.uniformMatrix4fv(shader.uniform('uModelMatrix'), /*transpose=*/ false, pqModel);
+      if (!this.targetIsSliceView) {
+        const renderContext = context.renderContext as PerspectiveViewRenderContext;
+        // gl.uniform1f(shader.uniform("uRadiusScale"), 1.0/renderContext.perspectiveNavigationState.zoomFactor.value);
+        gl.uniform1f(shader.uniform("uRadiusScale"), 2.0*Math.tan(Math.PI / 8.0)/renderContext.perspectiveNavigationState.zoomFactor.value);
+        // gl.uniform1f(shader.uniform("uRadiusScale"), renderContext.perspectiveNavigationState.zoomFactor.value);
+      }
       setLightingShader(shader, true);
       this.coneRenderHelper.draw(shader, context.count);
     });

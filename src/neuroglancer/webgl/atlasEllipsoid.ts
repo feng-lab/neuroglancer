@@ -38,7 +38,7 @@ void emitAtlasEllipsoid(
   vec4 xVector = vec4(xArray[0], xArray[1], xArray[2], 0.0);
   vec4 yVector = vec4(yArray[0], yArray[1], yArray[2], 0.0);
   vec4 zVector = vec4(zArray[0], zArray[1], zArray[2], 0.0);
-  vec4 center = vec4(centerPosition[0], centerPosition[1], centerPosition[2], 1.0);
+  vec4 center = uModel * vec4(centerPosition[0], centerPosition[1], centerPosition[2], 1.0);
 
   //mat4 T = mat4(3.0 ,3.0 ,2.0 ,0.0 , 0.0 ,2.0 ,0.0 ,0.0 , 0.0 ,0.0 ,1.0 ,0.0 , 0.0 ,0.0 ,0.0 ,1.0 );
   mat4 T = mat4(xVector, yVector , zVector , center );
@@ -50,29 +50,39 @@ void emitAtlasEllipsoid(
   // either -1 or 1, -1 -> down, 1 -> up
   float upFlag = flags.y - 1.;
 
-  // get border
-  mat4 PMT_T = transpose(projectionViewMatrix * T);
-  float a2 = dot(PMT_T[3] * D, PMT_T[3]) * 2.0;   // 2.0*a
-  float mb = dot(PMT_T[0] * D, PMT_T[3]) * 2.0;   // -b
-  float c = dot(PMT_T[0] * D, PMT_T[0]);
-  float x = (mb + rightFlag * sqrt(mb*mb - 2.0 * a2 * c)) / a2;
-
-  mb = dot(PMT_T[1] * D, PMT_T[3]) * 2.0;   // -b
-  c = dot(PMT_T[1] * D, PMT_T[1]);
-  float y = (mb + upFlag * sqrt(mb*mb - 2.0*a2*c)) / a2;
-
   // other
   vMatrixInverse = inverse(viewMatrix * T);
 
   //color = attr_color;
+  
+  // get border
+  mat4 PMT_T = transpose(projectionViewMatrix * T);
 
-  vec4 vertex_clipspace = vec4(x, y, 0.0, 1.0);
+  for(float i=-1.0; i<2.0; i+=2.0)
+  {
+    float a2 = dot(PMT_T[3] * D, PMT_T[3]) * 2.0;   // 2.0*a
+    float mb = dot(PMT_T[0] * D, PMT_T[3]) * 2.0;   // -b
+    float c = dot(PMT_T[0] * D, PMT_T[0]);
+    float x = (mb + rightFlag * sqrt(mb*mb - 2.0 * a2 * c)) / a2;
+
+    mb = dot(PMT_T[1] * D, PMT_T[3]) * 2.0;   // -b
+    c = dot(PMT_T[1] * D, PMT_T[1]);
+    float y = (mb + upFlag * sqrt(mb*mb - 2.0*a2*c)) / a2;
+
+    mb = dot(PMT_T[2] * D, PMT_T[3]) * 2.0;   // -b
+    c = dot(PMT_T[2] * D, PMT_T[2]);
+    float z = (mb + i * sqrt(mb*mb - 2.0*a2*c)) / a2;
+
+    // vec4 vertex_clipspace = vec4(x, y, 0.0, 1.0);
+    vec4 vertex_clipspace = vec4(x, y, z, 1.0);
+
     // Calculate vertex position in modelview space
-  vec4 eyeSpacePos = projectionInverseMatrix * vertex_clipspace;
-  vPoint = eyeSpacePos.xyz / eyeSpacePos.w;
+    vec4 eyeSpacePos = projectionInverseMatrix * vertex_clipspace;
+    vPoint = eyeSpacePos.xyz / eyeSpacePos.w;
 
-  // Pass transformed vertex
-  gl_Position = vertex_clipspace;
+    // Pass transformed vertex
+    gl_Position = vertex_clipspace;
+  }
 }
     `);
     builder.addFragmentCode(`
@@ -103,6 +113,7 @@ vec4 emitAtlasEllipsoidFragment(mat4 projectionMatrix) {
   vec2 clipZW = ipoint.z * projectionMatrix[2].zw + projectionMatrix[3].zw;
 
   float depth = 0.5 + 0.5 * clipZW.x / clipZW.y;
+  // float depth = 0.5;
 
   if (depth <= 0.0)
     discard;
@@ -110,7 +121,7 @@ vec4 emitAtlasEllipsoidFragment(mat4 projectionMatrix) {
   if (depth >= 1.0)
     discard;
 
-  //fragDepth = depth;
+    // out_z = depth;
 
   vec4 normal4 = transpose(vMatrixInverse) * (xfpp + dist * c3);
   vec3 normalDirection = normalize(normal4.xyz);

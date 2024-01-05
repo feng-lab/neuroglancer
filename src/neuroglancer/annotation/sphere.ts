@@ -156,6 +156,8 @@ emit(color, vPickID);
       // const invRightLength = 1/rightLength;
       // const invUpLength = 1/upLength;
 
+      // console.log("pq renderSubspaceModelMatrix", context.renderSubspaceModelMatrix);
+
       const radiusCoefficient = Math.floor(
         Math.log10(displayDimensionRenderInfo.canonicalVoxelPhysicalSize) - (-9)) * 1e-3;
 
@@ -190,6 +192,7 @@ emit(color, vPickID);
       // mat4.multiply(pqModel,pqModel,context.renderSubspaceModelMatrix);
       // gl.uniformMatrix4fv(shader.uniform('uModel'), /*transpose=*/ false, pqModel);
       gl.uniformMatrix4fv(shader.uniform('uModel'), /*transpose=*/ false, mat4.multiply(pqModel,pqModel,context.renderSubspaceModelMatrix));
+      // console.log('pqModel', pqModel);
       // gl.uniformMatrix4fv(shader.uniform('uModel'), /*transpose=*/ false, context.renderSubspaceModelMatrix);
       gl.uniform1f(shader.uniform("uRadiusCoefficient"), radiusCoefficient);
       // gl.uniform1f(
@@ -205,7 +208,9 @@ emit(color, vPickID);
       );
       if (!this.targetIsSliceView) {
         const renderContext = context.renderContext as PerspectiveViewRenderContext;
-        gl.uniform1f(shader.uniform("uRadiusScale"), 1.0/renderContext.perspectiveNavigationState.zoomFactor.value);
+        gl.uniform1f(shader.uniform("uRadiusScale"), 2.0*Math.tan(Math.PI / 8.0)/renderContext.perspectiveNavigationState.zoomFactor.value);
+        // gl.uniform1f(shader.uniform("uRadiusScale"), 1/renderContext.perspectiveNavigationState.zoomFactor.value);
+        // console.log('pq radiusscale', renderContext.perspectiveNavigationState.zoomFactor.value/(2*Math.tan(Math.PI / 8.0)));
       }
       const ortho = this.targetIsSliceView ? 1.0 : 0.0;
       gl.uniform1f(shader.uniform("uOrtho"), ortho);
