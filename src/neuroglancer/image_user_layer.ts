@@ -64,9 +64,11 @@ export interface ImageLayerSelectionState extends UserLayerSelectionState {
   value: any;
 }
 
+const COLOR_JSON_KEY = "color";
+
 const Base = UserLayerWithAnnotationsMixin(UserLayer);
 export class ImageUserLayer extends Base {
-  opacity = trackableAlphaValue(1.0);
+  opacity = trackableAlphaValue(0.5);
   blendMode = trackableBlendModeValue();
   fragmentMain = getTrackableFragmentMain();
   shaderError = makeWatchableShaderError();
@@ -186,7 +188,17 @@ export class ImageUserLayer extends Base {
     verifyOptionalObjectProperty(
         specification, BLEND_JSON_KEY, blendValue => this.blendMode.restoreState(blendValue));
     this.fragmentMain.restoreState(specification[SHADER_JSON_KEY]);
-    this.shaderControlState.restoreState(specification[SHADER_CONTROLS_JSON_KEY]);
+    let shader_controls = {} as any;
+    if (SHADER_CONTROLS_JSON_KEY in specification){
+      shader_controls = specification[SHADER_CONTROLS_JSON_KEY];
+    }
+
+    // old neurodata viz links
+    if (COLOR_JSON_KEY in specification){
+      shader_controls[COLOR_JSON_KEY] = specification[COLOR_JSON_KEY];
+    }
+
+    this.shaderControlState.restoreState(shader_controls);
     this.sliceViewRenderScaleTarget.restoreState(
         specification[CROSS_SECTION_RENDER_SCALE_JSON_KEY]);
     this.channelCoordinateSpace.restoreState(specification[CHANNEL_DIMENSIONS_JSON_KEY]);
